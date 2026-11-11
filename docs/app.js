@@ -37,7 +37,8 @@
     const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, nome, email, situacao").eq("user_id", session.user.id);
     const p = perfis && perfis[0];
     if (ep || !p) {
-      await sb.auth.signOut();
+      try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
+      try { Object.keys(localStorage).filter(k => k.startsWith("sb-")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
       show("login");
       $("lErr").textContent = "Seu usuário não tem perfil de acesso. Solicite acesso ou fale com a GMAP.";
       return;
@@ -87,8 +88,14 @@
     if (error) { $("lErr").textContent = "E-mail ou senha incorretos."; return; }
     iniciar();
   };
-  $("bSair").onclick = async () => { await sb.auth.signOut(); location.reload(); };
-  $("pSair").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  // Sair: tenta encerrar a sessão no servidor e, aconteça o que acontecer, apaga a sessão deste navegador.
+  async function sair() {
+    try { await sb.auth.signOut({ scope: "local" }); } catch (e) { /* segue para a limpeza local */ }
+    try { Object.keys(localStorage).filter(k => k.startsWith("sb-")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    location.replace(location.pathname);
+  }
+  $("bSair").onclick = sair;
+  $("pSair").onclick = sair;
 
   // ---------- solicitar acesso ----------
   $("aCad").onclick = async ev => {
