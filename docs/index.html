@@ -20,8 +20,39 @@
     <label>Senha<input type="password" id="lSenha" required autocomplete="current-password"></label>
     <div class="lerr" id="lErr"></div>
     <button class="btn pri" type="submit" id="lBtn">Entrar</button>
-    <div class="lhelp">Esqueceu a senha ou não tem acesso? Fale com a GMAP.</div>
+    <div class="lhelp">Não tem acesso? <a href="#" id="aCad">Solicitar acesso</a><br>Esqueceu a senha? Fale com a GMAP.</div>
   </form>
+</div>
+<div id="cad" class="login" hidden>
+  <form class="lcard" id="fCad">
+    <img src="assets/logo-seduc.png" alt="Secretaria da Educação (SEDUC) · Governo do Piauí">
+    <h1>Solicitar acesso</h1>
+    <div class="sub">Seu pedido será analisado pela GMAP. O acesso só é liberado após a aprovação.</div>
+    <label>Nome completo<input type="text" id="cNome" required maxlength="120" autocomplete="name"></label>
+    <label>E-mail<input type="email" id="cEmail" required autocomplete="username"></label>
+    <label>Perfil
+      <select id="cPerfil" required>
+        <option value="">Selecione</option>
+        <option value="empresa">Empresa contratada</option>
+        <option value="diretoria">Diretoria</option>
+        <option value="gmap">GMAP (gerência)</option>
+      </select>
+    </label>
+    <label id="lEmp" hidden>Empresa<select id="cEmpresa"><option value="">Selecione</option></select></label>
+    <label>Senha (mínimo de 10 caracteres)<input type="password" id="cS1" minlength="10" required autocomplete="new-password"></label>
+    <label>Repita a senha<input type="password" id="cS2" minlength="10" required autocomplete="new-password"></label>
+    <div class="lerr" id="cErr"></div>
+    <button class="btn pri" type="submit" id="cBtn">Enviar solicitação</button>
+    <div class="lhelp"><a href="#" id="aLogin">Voltar ao login</a></div>
+  </form>
+</div>
+<div id="pend" class="login" hidden>
+  <div class="lcard">
+    <img src="assets/logo-seduc.png" alt="Secretaria da Educação (SEDUC) · Governo do Piauí">
+    <h1 id="pTit">Acesso em análise</h1>
+    <div class="sub" id="pMsg"></div>
+    <button class="btn" id="pSair">Sair</button>
+  </div>
 </div>
 <div id="carregando" class="login"><div class="sub">Carregando…</div></div>
 <div class="drawer" id="dSenha"><form class="panel" id="fSenha" style="height:auto;margin:auto;border-radius:10px;max-width:420px">
@@ -45,6 +76,7 @@
       <button class="tab on" data-v="geral">Visão geral</button>
       <button class="tab" data-v="fila">Fila de O.S.</button>
       <button class="tab" data-v="aud">Auditoria dos dados</button>
+      <button class="tab" data-v="usr">Usuários</button>
     </div>
     <div class="filters" id="filters"></div>
 
@@ -67,6 +99,12 @@
         <div class="card"><h3>Canceladas por empresa</h3><div class="d">Quantidade e motivo mais frequente</div><div id="canemp"></div></div>
       </div>
       <div class="card" id="audlist"></div>
+    </section>
+
+    <section id="v-usr" hidden>
+      <div class="lerr" id="uMsg" style="margin-bottom:8px"></div>
+      <div class="card" style="margin-bottom:12px"><h3 id="uPendT">Pedidos de acesso</h3><div class="d">Confira se a pessoa e o e-mail são de quem dizem ser. Ajuste o perfil ou a empresa antes de aprovar, se necessário.</div><div id="uPend"></div></div>
+      <div class="card"><h3>Usuários cadastrados</h3><div class="d">Bloquear retira o acesso na hora. Todas as decisões ficam registradas.</div><div class="tbl" style="max-height:none" id="uTodos"></div></div>
     </section>
 
     <section id="v-fila" hidden>
@@ -99,6 +137,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="painel.js"></script>
+<script src="usuarios.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
