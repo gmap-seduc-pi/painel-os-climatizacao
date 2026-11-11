@@ -1,5 +1,9 @@
 -- =====================================================================
--- Cadastro de perfis de acesso
+-- ROTINA NORMAL: o cadastro é feito pela própria pessoa em "Solicitar acesso"
+-- e a aprovação na aba "Usuários" do painel (perfil GMAP). Este arquivo é só
+-- para casos excepcionais, feitos direto no SQL Editor.
+-- =====================================================================
+-- Cadastro manual de perfis de acesso
 -- 1) Crie o usuário em Authentication > Users > Add user > Create new user
 --    (e-mail + senha temporária, marque "Auto Confirm User").
 -- 2) Rode o comando abaixo trocando e-mail, nome, perfil e empresa.
@@ -12,19 +16,22 @@
 insert into public.perfis (user_id, email, nome, perfil, empresa)
 select id, email, 'Felipe Cavalcante', 'gmap', null
 from auth.users where email = 'email.da.pessoa@exemplo.com'
-on conflict (user_id) do update set nome = excluded.nome, perfil = excluded.perfil, empresa = excluded.empresa, ativo = true;
+on conflict (user_id) do update set nome = excluded.nome, perfil = excluded.perfil, empresa = excluded.empresa, situacao = 'aprovado';
 
 -- Exemplo: usuário de empresa
 insert into public.perfis (user_id, email, nome, perfil, empresa)
 select id, email, 'Responsável Classe A', 'empresa', 'CLASSE A'
 from auth.users where email = 'contato@empresa.com.br'
-on conflict (user_id) do update set nome = excluded.nome, perfil = excluded.perfil, empresa = excluded.empresa, ativo = true;
+on conflict (user_id) do update set nome = excluded.nome, perfil = excluded.perfil, empresa = excluded.empresa, situacao = 'aprovado';
 
 -- Bloquear um usuário imediatamente (sem apagar o histórico)
--- update public.perfis set ativo = false where email = 'pessoa@exemplo.com';
+-- update public.perfis set situacao = 'bloqueado' where email = 'pessoa@exemplo.com';
 
 -- Conferir quem tem acesso
--- select email, nome, perfil, empresa, ativo from public.perfis order by perfil, empresa, email;
+-- select email, nome, perfil, empresa, situacao from public.perfis order by perfil, empresa, email;
+
+-- Aprovar o PRIMEIRO usuário GMAP (só na implantação, quando ainda não há quem aprove)
+-- update public.perfis set situacao = 'aprovado', perfil = 'gmap', empresa = null where email = 'seu.email@seduc.pi.gov.br';
 
 -- Conferir se os nomes de empresa dos perfis batem com a planilha
 -- select distinct p.empresa, exists (select 1 from public.os o where o.empresa = p.empresa) as existe_na_planilha

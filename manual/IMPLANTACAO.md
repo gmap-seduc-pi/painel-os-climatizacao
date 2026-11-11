@@ -90,19 +90,15 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
    Opção B, **Netlify ou Vercel**: arraste a pasta `docs` para criar o site.
 3. No Supabase, em **Authentication > URL Configuration**, informe o endereço do site como **Site URL**.
 
-## 5. Cadastrar usuários
+## 5. Usuários: cadastro com aprovação
 
-1. **Authentication > Users > Add user > Create new user**: e-mail, senha temporária e marque **Auto Confirm User**.
-2. No **SQL Editor**, use `supabase/scripts/usuarios.sql` para criar o perfil:
-   - `gmap`: visão geral, fila de todas as empresas e aba de auditoria;
-   - `diretoria`: visão geral e fila de todas as empresas;
-   - `empresa`: visão geral e fila só da própria empresa. O nome da empresa precisa ser **idêntico** ao da coluna EMPRESA da planilha.
-3. Envie o endereço do site e a senha temporária por um canal seguro e peça para a pessoa usar **Alterar senha** no primeiro acesso.
-4. Usuário sem perfil, ou com `ativo = false`, não vê nada, mesmo que consiga fazer login.
+1. No Supabase, em **Authentication**, **ative** o cadastro de novos usuários e **desative** a confirmação de e-mail (sem servidor de e-mail próprio, a confirmação não chega). A segurança vem da aprovação da GMAP.
+2. A pessoa abre o painel, clica em **Solicitar acesso** e informa nome, e-mail, senha e o perfil pretendido (e a empresa, se for o caso). A conta nasce **pendente** e não vê nenhum dado.
+3. Um usuário GMAP abre a aba **Usuários**, confere se a pessoa e o e-mail são de quem dizem ser, ajusta perfil ou empresa se necessário e clica em **Aprovar** ou **Recusar**. A aba mostra um contador de pedidos pendentes.
+4. Na mesma aba, **Bloquear** retira o acesso na hora e **Reativar** devolve. Ninguém altera o próprio acesso. Todas as decisões ficam em `perfis_log`.
+5. **Primeiro usuário GMAP:** como ainda não há quem aprove, ele se cadastra pelo site e é aprovado uma única vez pelo SQL Editor (comando no fim de `supabase/scripts/usuarios.sql`).
 
-**Esqueceu a senha:** em **Authentication > Users**, abra o usuário e defina uma nova senha temporária. (Recuperação automática por e-mail exige configurar um servidor de e-mail próprio no Supabase; pode ser feito depois.)
-
-**Saída de alguém ou fim de contrato de empresa:** rode `update public.perfis set ativo = false where email = '...';`. O bloqueio é imediato.
+**Esqueceu a senha:** em **Authentication > Users**, abra o usuário e defina uma nova senha temporária. A recuperação automática por e-mail exige um servidor de e-mail próprio no Supabase.
 
 ## 6. Regras de negócio implementadas
 
@@ -136,7 +132,7 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 
 - [ ] **Despublicar a planilha da web** (Arquivo > Compartilhar > Publicar na web > Interromper publicação). Enquanto estiver publicada, qualquer pessoa com o link baixa todas as O.S.
 - [ ] Chave secreta só nas propriedades do Apps Script. Se vazar, gere outra no Supabase e atualize a propriedade.
-- [ ] Cadastro público de usuários desativado no Supabase.
+- [ ] Confirmação de e-mail desativada e todo pedido de acesso conferido antes da aprovação.
 - [ ] Revisar a lista de perfis a cada mudança de equipe ou de contrato.
 - [ ] Conferir os acessos de vez em quando (`supabase/scripts/consultas_uteis.sql`).
 
@@ -147,7 +143,7 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 3. Login com usuário de **empresa**: duas abas, só as O.S. dela; sem filtro de empresa; exportações só com as O.S. dela.
 4. Alterar um status na planilha de uma empresa, rodar **Atualizar > Atualizar Planilha** e conferir no painel.
 5. Exportar relatório sintético e analítico (Excel e PDF) e imprimir uma O.S. e um lote.
-6. Bloquear um usuário (`ativo = false`) e confirmar que ele não vê mais nada.
+6. Bloquear um usuário de teste na aba **Usuários** e confirmar que ele não vê mais nada.
 
 ## 9. Manutenção
 

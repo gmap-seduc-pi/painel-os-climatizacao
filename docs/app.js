@@ -3,7 +3,7 @@
 (function () {
   const cfg = window.PAINEL_CONFIG || {};
   const $ = id => document.getElementById(id);
-  const show = id => ["login", "carregando", "app"].forEach(x => $(x).hidden = x !== id);
+  const show = id => ["login", "cad", "pend", "carregando", "app"].forEach(x => $(x).hidden = x !== id);
 
   if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes("SEU-PROJETO")) {
     show("carregando");
@@ -34,13 +34,21 @@
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return show("login");
 
-    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, nome, email, ativo").eq("user_id", session.user.id);
+    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, nome, email, situacao").eq("user_id", session.user.id);
     const p = perfis && perfis[0];
-    if (ep || !p || !p.ativo) {
+    if (ep || !p) {
       await sb.auth.signOut();
       show("login");
-      $("lErr").textContent = "Seu usuário não tem perfil de acesso ativo. Fale com a GMAP.";
+      $("lErr").textContent = "Seu usuário não tem perfil de acesso. Solicite acesso ou fale com a GMAP.";
       return;
+    }
+    if (p.situacao !== "aprovado") {
+      const pend = p.situacao === "pendente";
+      $("pTit").textContent = pend ? "Acesso em análise" : "Acesso não liberado";
+      $("pMsg").textContent = pend
+        ? "Seu pedido de acesso foi recebido e está em análise pela GMAP. Você poderá entrar assim que ele for aprovado."
+        : "Seu acesso não está liberado. Em caso de dúvida, fale com a GMAP.";
+      return show("pend");
     }
 
     try {
@@ -62,7 +70,9 @@
       $("refd").textContent = "situação em " + hojeBR().split("-").reverse().join("/") + (ult ? " · planilha sincronizada em " + fmtDH(ult.executada_em) : "");
 
       show("app");
-      iniciarPainel({ rows, perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href });
+      const { data: emps } = await sb.rpc("empresas_disponiveis");
+      iniciarPainel({ rows, perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
+                      sb, uid: session.user.id, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]) });
     } catch (e) {
       show("carregando");
       $("carregando").innerHTML = '<div class="lcard"><b>Não foi possível carregar os dados</b><div class="sub">' + String(e.message || e).replace(/</g, "&lt;") + '</div><button class="btn" onclick="location.reload()">Tentar de novo</button></div>';
@@ -78,6 +88,42 @@
     iniciar();
   };
   $("bSair").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+  $("pSair").onclick = async () => { await sb.auth.signOut(); location.reload(); };
+
+  // ---------- solicitar acesso ----------
+  $("aCad").onclick = async ev => {
+    ev.preventDefault();
+    $("cErr").textContent = ""; show("cad");
+    const { data } = await sb.rpc("empresas_disponiveis");
+    $("cEmpresa").innerHTML = '<option value="">Selecione</option>' + (data || [])
+      .map(e => typeof e === "string" ? e : Object.values(e)[0])
+      .map(e => `<option>${String(e).replace(/</g, "&lt;")}</option>`).join("");
+  };
+  $("aLogin").onclick = ev => { ev.preventDefault(); show("login"); };
+  $("cPerfil").onchange = () => { $("lEmp").hidden = $("cPerfil").value !== "empresa"; $("cEmpresa").required = $("cPerfil").value === "empresa"; };
+  $("fCad").onsubmit = async ev => {
+    ev.preventDefault();
+    $("cErr").textContent = "";
+    if ($("cS1").value !== $("cS2").value) { $("cErr").textContent = "As senhas não conferem."; return; }
+    const perfil = $("cPerfil").value, empresa = perfil === "empresa" ? $("cEmpresa").value : null;
+    if (perfil === "empresa" && !empresa) { $("cErr").textContent = "Selecione a empresa."; return; }
+    $("cBtn").disabled = true;
+    const { data, error } = await sb.auth.signUp({
+      email: $("cEmail").value.trim(), password: $("cS1").value,
+      options: { data: { nome: $("cNome").value.trim(), perfil, empresa } }
+    });
+    $("cBtn").disabled = false;
+    if (error) {
+      $("cErr").textContent = /registered|already/i.test(error.message)
+        ? "Este e-mail já tem cadastro. Use a tela de login ou fale com a GMAP."
+        : "Não foi possível enviar: " + error.message;
+      return;
+    }
+    if (data.session) return iniciar();
+    $("pTit").textContent = "Solicitação enviada";
+    $("pMsg").textContent = "Seu pedido foi registrado e será analisado pela GMAP. Você poderá entrar assim que ele for aprovado.";
+    show("pend");
+  };
 
   $("bSenha").onclick = () => { $("sErr").textContent = ""; $("fSenha").reset(); $("dSenha").classList.add("on"); };
   $("sCanc").onclick = () => $("dSenha").classList.remove("on");

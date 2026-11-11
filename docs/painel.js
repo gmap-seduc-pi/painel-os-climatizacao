@@ -281,10 +281,12 @@ document.addEventListener("click",()=>$("mExp").classList.remove("on"));
 $("mExp").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>exp(b.dataset.x));
 
 // ---------- navegação ----------
-function setView(v){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); ["geral","fila","aud"].forEach(x=>$("v-"+x).hidden=v!==x); page=0; render()}
+function setView(v){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); ["geral","fila","aud","usr"].forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=v==="usr"; page=0; render()}
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>setView(t.dataset.v));
-function render(){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else renderFila(); }
+function render(){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX); else renderFila(); }
 document.querySelector('.tab[data-v="aud"]').hidden = perfil!=="gmap";
+document.querySelector('.tab[data-v="usr"]').hidden = perfil!=="gmap";
+if(perfil==="gmap") contarPendentes(CTX);
 buildFilters(); render();
 
 }

@@ -81,11 +81,15 @@ function sincronizar() {
     if (faltando.length) throw new Error('Colunas obrigatórias não encontradas: ' + faltando.join(', '));
 
     const linhas = [];
+    const ignoradas = [];
     for (let i = linhaCab; i < valores.length; i++) {
       const v = valores[i];
       const numero = texto(v[idx.numero]);
       const empresa = texto(v[idx.empresa]);
-      if (!numero || !empresa) continue; // linha vazia ou incompleta
+      if (!numero || !empresa) {
+        if (v.some(c => String(c).trim() !== '')) ignoradas.push(i + 1);
+        continue; // linha vazia ou sem número de O.S.
+      }
       const o = { chave: numero + '|' + empresa };
       Object.keys(COLUNAS).forEach(k => {
         const bruto = idx[k] >= 0 ? v[idx[k]] : '';
@@ -110,6 +114,7 @@ function sincronizar() {
     if (codigo >= 300) throw new Error(`Supabase respondeu ${codigo}: ${resp.getContentText().slice(0, 500)}`);
     const r = JSON.parse(resp.getContentText());
     console.log('Sincronização: ' + JSON.stringify(r));
+    if (ignoradas.length) console.warn('Linhas sem número de O.S. ou empresa, não enviadas ao painel: ' + ignoradas.join(', '));
     return r;
   } finally {
     lock.releaseLock();
