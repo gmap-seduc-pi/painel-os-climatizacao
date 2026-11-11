@@ -1,0 +1,25 @@
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editores
+.vscode/
+.idea/
+*.swp
+
+# Dados e exportações: nunca versionar
+*.xlsx
+*.xls
+*.csv
+*.pdf
+exportacoes/
+
+# Segredos e credenciais
+.env
+.env.*
+*.key
+.clasprc.json
+
+# Dependências (caso usem ferramentas no futuro)
+node_modules/
