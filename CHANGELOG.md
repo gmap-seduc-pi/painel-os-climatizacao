@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [1.1.1] - 2026-11-11
+
+### Corrigido
+- Relatório sintético (Excel e PDF): nova coluna "Canceladas", para que Total = Em aberto + Atendidas + Canceladas em todas as linhas.
+- Relatório sintético: linha "Não informada" nas tabelas por prioridade e por GRE, para que as linhas sempre somem o total.
+- Relatório sintético: nota explicando que Vencidas e A vencer são parte das Em aberto.
+
 ## [1.1.0] - 2026-11-11
 
 ### Adicionado
