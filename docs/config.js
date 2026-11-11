@@ -3,6 +3,6 @@
    a proteção dos dados é feita pelas regras de acesso (RLS) do banco.
    NUNCA coloque aqui a chave secreta (service_role / sb_secret_...). */
 window.PAINEL_CONFIG = {
-  SUPABASE_URL: "https://SEU-PROJETO.supabase.co",
-  SUPABASE_ANON_KEY: "COLE-AQUI-A-CHAVE-ANON-OU-PUBLISHABLE"
+  SUPABASE_URL: "https://kwxdctyrxfkpgmkigrao.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_sx3_1IHD4ZiYhmMaGmk7vA_X-GRDNXC"
 };
