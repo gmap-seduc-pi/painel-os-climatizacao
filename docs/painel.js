@@ -256,15 +256,15 @@ $("bPrintSel").onclick=()=>printOS([...sel].map(find).filter(Boolean));
 // ---------- relatórios ----------
 function synth(L){
   const canc=LL=>LL.filter(o=>o.status==="Cancelada").length;
-  const linha=(nome,LL)=>{const s=stats(LL);return [nome,s.total,s.open,s.venc,s.av,s.atend,canc(LL),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
+  const linha=(nome,LL)=>{const s=stats(LL);return [nome,s.total,s.open,s.atend,canc(LL),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
   // linha "Não informada" para registros sem o campo, para que as linhas sempre somem o total
   const grp=(key,vals,name)=>vals.map(v=>linha(name(v),L.filter(o=>o[key]===v))).filter(r=>r[1]).concat(L.some(o=>!o[key])?[linha("Não informada",L.filter(o=>!o[key]))]:[]);
-  const H=["", "Total", "Em aberto", "Vencidas", "A vencer", "Atendidas", "Canceladas", "% atendidas no prazo"];
+  const H=["", "Total", "Em aberto", "Atendidas", "Canceladas", "% atendidas no prazo"];
   const s=stats(L);
   return {H, emp:grp("emp",EMPS,v=>EMPN[v]), prio:grp("prio",PRIOS,v=>v), gre:grp("gre",uniq("gre"),v=>v),
-    tot:["Total",s.total,s.open,s.venc,s.av,s.atend,canc(L),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
+    tot:["Total",s.total,s.open,s.atend,canc(L),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
 }
-const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas. Vencidas e A vencer são parte das Em aberto (não somam ao total).";
+const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas.";
 const ANH=["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Situação do prazo","Dias de atraso","Escola","INEP","GRE","Município","Serviço","Splits","Processo SEI"];
 const anRow=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.sei];
 function xlsx(name,sheets){const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=aoa[Math.min(4,aoa.length-1)].map((_,i)=>({wch:Math.min(48,Math.max(10,...aoa.map(r=>String(r[i]??"").length+2)))}));XLSX.utils.book_append_sheet(wb,ws,n)});XLSX.writeFile(wb,name)}
@@ -273,7 +273,7 @@ function exp(x){
   if(x==="sx"){const S=synth(L); const blk=(t,rows,first)=>[[t],[first].concat(S.H.slice(1))].concat(rows).concat([[]]);
     xlsx("OS_relatorio_sintetico.xlsx",[["Sintético",head.concat([[NOTA_SINT],[]],blk("Por empresa",S.emp.concat([S.tot]),"Empresa"),blk("Por prioridade",S.prio.concat([S.tot]),"Prioridade"),blk("Por GRE",S.gre.concat([S.tot]),"GRE"))]]);}
   if(x==="ax") xlsx("OS_relatorio_analitico.xlsx",[["Analítico",head.concat([ANH],L.map(anRow))]]);
-  const T=(H,R)=>`<table><thead><tr>${H.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${R.map(r=>`<tr>${r.map((c,i)=>`<td ${i&&typeof c==="number"?'style="text-align:right"':""}>${esc(typeof c==="number"&&i===7?c.toLocaleString("pt-BR")+"%":c??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const T=(H,R)=>`<table><thead><tr>${H.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${R.map(r=>`<tr>${r.map((c,i)=>`<td ${i&&typeof c==="number"?'style="text-align:right"':""}>${esc(typeof c==="number"&&i===5?c.toLocaleString("pt-BR")+"%":c??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   if(x==="sp"){const S=synth(L); doPrint(`<div class="rp">${ph("Relatório sintético")}<h2>Relatório sintético de O.S.</h2><div class="foot">${esc(filterText())} · Situação em ${fmt(REF)}</div><div class="foot">${NOTA_SINT}</div>
     <h3>Por empresa</h3>${T(["Empresa"].concat(S.H.slice(1)),S.emp.concat([S.tot]))}<h3>Por prioridade</h3>${T(["Prioridade"].concat(S.H.slice(1)),S.prio.concat([S.tot]))}<h3>Por GRE</h3>${T(["GRE"].concat(S.H.slice(1)),S.gre.concat([S.tot]))}</div>`);}
   if(x==="ap"){const H2=["Nº O.S.","Empresa","Status","Prior.","Criada","Prazo","Atendida","Situação do prazo","Escola","Município"];
