@@ -100,7 +100,7 @@ td.n,th.n{text-align:right}
 .login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .login[hidden]{display:none}
 .lcard{background:#fff;border:1px solid var(--line);border-radius:12px;padding:28px;width:min(400px,100%);display:flex;flex-direction:column;gap:12px}
-.lcard img{height:60px;width:auto;align-self:flex-start}
+.lcard img{height:64px;width:auto;align-self:center}
 .lcard h1{font-size:19px;margin:6px 0 0;color:var(--brand)}
 .lcard label,.fl{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);margin-bottom:10px}
 .lcard input,.fl input{border:1px solid var(--line);border-radius:6px;padding:9px 10px;font:inherit;color:var(--ink)}
@@ -115,3 +115,29 @@ td.n,th.n{text-align:right}
 .acoes{display:flex;gap:6px;flex-wrap:wrap}
 .btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}.btn.no{color:var(--bad);border-color:#F2B8AC}
 .filters[hidden],.tab[hidden]{display:none}
+/* tela de login, cadastro e aviso: identidade e textos centralizados; rótulos dos campos à esquerda para leitura */
+.lcard h1,.lcard>.sub,.lcard .lerr,.lcard .lhelp{text-align:center}
+.lcard h1{margin-top:4px}
+.lateh{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.latesel{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--soft);color:var(--brand);border-radius:999px;padding:4px 6px 4px 10px;font-size:12px;font-weight:600;max-width:100%}
+.chip button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;color:var(--brand);font-weight:700;line-height:1}
+.fbar{flex-wrap:wrap}
+
+/* Barra de seleção da fila (v1.1.6) */
+.selbar[hidden],.selaviso[hidden],.lnk[hidden]{display:none!important}
+.selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--soft);border:1px solid #BCD3EE;border-radius:8px;padding:8px 12px;margin-bottom:10px}
+.selbar #selN{color:var(--brand)}
+.selbar .sp{flex:1}
+.lnk{background:none;border:0;color:#9A5B00;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0}
+.selaviso{font-size:13px;color:var(--muted);margin:-4px 0 10px}
+tr.marc td{background:#F3F8FE}
+.qbar input:disabled,.qbar select:disabled{opacity:.5}
+@media (max-width:700px){
+  .selbar{position:fixed;left:0;right:0;bottom:0;z-index:30;margin:0;border-radius:0;border-width:1px 0 0;box-shadow:0 -4px 14px rgba(0,0,0,.08);padding:8px 12px calc(8px + env(safe-area-inset-bottom))}
+  .selbar .sp{display:none}
+  .selbar #selN{width:100%}
+  .selbar .btn{flex:1;padding:8px 6px}
+  #v-fila.comsel{padding-bottom:110px}
+}
+@media print{.selbar,.selaviso{display:none!important}}
