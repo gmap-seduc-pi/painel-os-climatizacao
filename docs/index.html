@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1.1.3">
+<link rel="stylesheet" href="style.css?v=1.1.6">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -89,7 +89,7 @@
       </div>
       <div class="grid2">
         <div class="card"><h3>Emitidas x atendidas por mês</h3><div class="d">Mês de criação e mês de atendimento</div><div class="chartbox"><canvas id="c2"></canvas></div></div>
-        <div class="card"><h3>Maiores atrasos em aberto</h3><div class="d">O.S. vencidas com mais dias de atraso</div><div id="late"></div></div>
+        <div class="card"><div class="lateh"><h3>Maiores atrasos em aberto</h3><label class="latesel">Ver por <select id="lateBy" class="usel"><option value="os">O.S.</option><option value="escola">Escola</option><option value="gre">GRE</option><option value="mun">Município</option></select></label></div><div class="d" id="lateD">O.S. vencidas com mais dias de atraso</div><div id="late"></div></div>
       </div>
     </section>
 
@@ -113,7 +113,6 @@
         <input id="q" placeholder="Buscar por nº da O.S., escola, INEP ou SEI">
         <select id="fprazo" class="btn"><option value="">Todas as situações de prazo</option><option>Vencida</option><option>A vencer</option><option>No prazo</option><option>Atendida no prazo</option><option>Atendida antes da O.S.</option><option>Atendida fora do prazo</option></select>
         <span class="cnt" id="cnt"></span>
-        <button class="btn" id="bPrintSel" disabled>Imprimir selecionadas</button>
         <div class="menu" id="mExp"><button class="btn pri" id="bExp">Exportar ▾</button>
           <div class="mlist">
             <div class="sep">Relatório sintético</div>
@@ -123,6 +122,15 @@
           </div>
         </div>
       </div>
+      <div class="selbar" id="selbar" hidden>
+        <b id="selN"></b>
+        <button class="lnk" id="selFora" hidden></button>
+        <span class="sp"></span>
+        <button class="btn" id="selVer">Ver só as selecionadas</button>
+        <button class="btn" id="bPrintSel" disabled>Imprimir</button>
+        <button class="btn" id="selLimpar">Limpar seleção</button>
+      </div>
+      <div class="selaviso" id="selAviso" hidden>Mostrando só as O.S. selecionadas. A pesquisa e o filtro de prazo voltam ao clicar em <b>Voltar à lista</b>.</div>
       <div class="tbl"><table id="tb"><thead><tr>
         <th><input type="checkbox" id="all" title="Selecionar página"></th><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Prioridade</th><th>Criada</th><th>Prazo</th><th>Situação do prazo</th><th>Status</th>
       </tr></thead><tbody></tbody></table></div>
@@ -136,9 +144,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=1.1.3"></script>
-<script src="painel.js?v=1.1.3"></script>
-<script src="usuarios.js?v=1.1.3"></script>
-<script src="app.js?v=1.1.3"></script>
+<script src="config.js?v=1.1.6"></script>
+<script src="painel.js?v=1.1.6"></script>
+<script src="usuarios.js?v=1.1.6"></script>
+<script src="app.js?v=1.1.6"></script>
 </body>
 </html>
