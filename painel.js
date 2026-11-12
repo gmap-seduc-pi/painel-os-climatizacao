@@ -46,6 +46,7 @@ EMPS.forEach(e=>{ if(!EMPN[e]) EMPN[e]=tc(e) });
 const PERFIS = [{id:"gmap",n:"GMAP (gerência)"},{id:"dir",n:"Diretoria"}].concat(EMPS.map(e=>({id:"emp:"+e,n:"Empresa: "+EMPN[e]})));
 const $ = id => document.getElementById(id);
 let perfil=CTX.perfil, view="geral", page=0, sel=new Set();
+$("lateBy").onchange=()=>render();
 if(perfil.startsWith("emp:") && !EMPN[perfil.slice(4)]) EMPN[perfil.slice(4)]=tc(perfil.slice(4));
 const PS=50;
 const base = () => perfil.startsWith("emp:") ? ALL.filter(o=>o.emp===perfil.slice(4)) : ALL;
@@ -65,14 +66,16 @@ function buildFilters(){
   const isEmp=perfil.startsWith("emp:");
   $("filters").innerHTML = FD.filter(f=>!(f.hideEmp&&isEmp)).map(f=>`<div><label>${f.n}</label><select data-k="${f.k}"><option value="">Todos</option>${f.opts().map(([v,t])=>`<option value="${esc(v)}" ${FV[f.k]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`).join("")
    + `<div><label>Criadas de</label><input type="date" data-k="de" value="${FV.de||""}"></div><div><label>até</label><input type="date" data-k="ate" value="${FV.ate||""}"></div>`
-   + `<div class="fbar"><button class="btn" id="clr">Limpar filtros</button></div>`;
+   + `<div class="fbar">${FV.escola?`<span class="chip">Escola: ${esc(FV.escolaNome||FV.escola)} <button id="xEsc" title="Remover filtro de escola">×</button></span>`:""}<button class="btn" id="clr">Limpar filtros</button></div>`;
   $("filters").querySelectorAll("select,input").forEach(el=>el.onchange=()=>{FV[el.dataset.k]=el.value;page=0;render()});
   $("clr").onclick=()=>{FV={};buildFilters();page=0;render()};
+  if($("xEsc")) $("xEsc").onclick=()=>{delete FV.escola;delete FV.escolaNome;buildFilters();page=0;render()};
 }
 function filtered(){
   return base().filter(o=>{
     for(const k of ["emp","gre","mun","status","prio"]) if(FV[k] && o[k]!==FV[k]) return false;
     if(FV.serv && !o.serv.includes(FV.serv)) return false;
+    if(FV.escola && (o.inep||o.escola)!==FV.escola) return false;
     if(FV.de && (!o.criada || o.criada<FV.de)) return false;
     if(FV.ate && (!o.criada || o.criada>FV.ate)) return false;
     return true;
@@ -80,6 +83,7 @@ function filtered(){
 }
 function filterText(){
   const p=[]; FD.forEach(f=>{if(FV[f.k]){const o=f.opts().find(x=>x[0]===FV[f.k]);p.push(f.n+": "+(o?o[1]:FV[f.k]))}});
+  if(FV.escola)p.push("Escola: "+(FV.escolaNome||FV.escola));
   if(FV.de)p.push("De "+fmt(FV.de)); if(FV.ate)p.push("Até "+fmt(FV.ate));
   const pr=(PERFIS.find(x=>x.id===perfil)||{n:CTX.perfilNome}).n;
   return "Perfil: "+pr+(p.length?" · "+p.join(" · "):" · Sem filtros");
@@ -136,11 +140,29 @@ function renderGeral(L){
     {label:"Atendidas",backgroundColor:"#034EA2",data:ms.map(m=>L.filter(o=>o.status==="Atendida"&&mk(o.atend)===m).length)}]},
     options:{maintainAspectRatio:false,plugins:{legend:{position:"top",align:"start"}},scales:{x:{grid:{display:false}},y:{grid:{color:"#EEF1F3"}}}}});
 
-  // maiores atrasos
-  const late=open.filter(o=>o.sp==="Vencida").sort((a,b)=>b.atraso-a.atraso).slice(0,6);
-  $("late").innerHTML = late.length ? `<table><thead><tr><th>Nº O.S.</th><th>Escola</th>${isEmp?"":"<th>Empresa</th>"}<th>Prioridade</th><th class="n">Dias de atraso</th></tr></thead><tbody>${
-    late.map(o=>`<tr class="r" data-os="${esc(o.os)}|${esc(o.emp)}"><td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||""))}</div></td>${isEmp?"":`<td>${EMPN[o.emp]}</td>`}<td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="n"><b style="color:var(--bad)">${nf(o.atraso)}</b></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Nenhuma O.S. vencida no filtro.</div>`;
-  $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
+  // maiores atrasos: por O.S. ou agrupado por escola, GRE ou município
+  const lateBy=$("lateBy").value, venc=open.filter(o=>o.sp==="Vencida");
+  $("lateD").textContent = lateBy==="os" ? "O.S. vencidas com mais dias de atraso" : "Onde há mais O.S. vencidas. Clique para abrir a fila filtrada.";
+  if(!venc.length){ $("late").innerHTML=`<div class="empty">Nenhuma O.S. vencida no filtro.</div>`; }
+  else if(lateBy==="os"){
+    const late=venc.sort((a,b)=>b.atraso-a.atraso).slice(0,6);
+    $("late").innerHTML = `<table><thead><tr><th>Nº O.S.</th><th>Escola</th>${isEmp?"":"<th>Empresa</th>"}<th>Prioridade</th><th class="n">Dias de atraso</th></tr></thead><tbody>${
+    late.map(o=>`<tr class="r" data-os="${esc(o.os)}|${esc(o.emp)}"><td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||""))}</div></td>${isEmp?"":`<td>${EMPN[o.emp]}</td>`}<td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="n"><b style="color:var(--bad)">${nf(o.atraso)}</b></td></tr>`).join("")}</tbody></table>`;
+    $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
+  } else {
+    const chave = o => lateBy==="escola" ? (o.inep||o.escola) : lateBy==="gre" ? (o.gre||"Não informada") : (o.mun||"Não informado");
+    const G={}; venc.forEach(o=>{ const k=chave(o); (G[k]=G[k]||{k,itens:[],o}).itens.push(o); });
+    const rows=Object.values(G).map(g=>({k:g.k,o:g.o,n:g.itens.length,max:Math.max(...g.itens.map(x=>x.atraso)),med:Math.round(g.itens.reduce((a,x)=>a+x.atraso,0)/g.itens.length)}))
+      .sort((a,b)=>b.n-a.n||b.max-a.max).slice(0,6);
+    const titulo={escola:"Escola",gre:"GRE",mun:"Município"}[lateBy];
+    const nome=r=> lateBy==="escola" ? `<div class="esc">${esc(tc(r.o.escola))}</div><div class="mun">${esc(tc(r.o.mun||""))}${r.o.inep?" · INEP "+esc(r.o.inep):""}</div>`
+      : lateBy==="gre" ? `<div class="esc">${esc(String(r.k).replace(/^0?(\d+)ª - (.*)$/,(m,a,b)=>a+"ª "+tc(b)))}</div>` : `<div class="esc">${esc(tc(r.k))}</div>`;
+    $("late").innerHTML=`<table><thead><tr><th>${titulo}</th><th class="n">O.S. vencidas</th><th class="n">Maior atraso</th><th class="n">Atraso médio</th></tr></thead><tbody>${
+      rows.map((r,i)=>`<tr class="r" data-i="${i}"><td>${nome(r)}</td><td class="n"><b>${nf(r.n)}</b></td><td class="n"><b style="color:var(--bad)">${nf(r.max)} d</b></td><td class="n">${nf(r.med)} d</td></tr>`).join("")}</tbody></table>`;
+    $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>{ const r=rows[+tr.dataset.i];
+      if(lateBy==="escola"){ FV.escola=r.o.inep||r.o.escola; FV.escolaNome=tc(r.o.escola); } else if(lateBy==="gre"){ FV.gre=r.k==="Não informada"?"":r.k; } else { FV.mun=r.k==="Não informado"?"":r.k; }
+      buildFilters(); $("fprazo").value="Vencida"; setView("fila"); });
+  }
 }
 
 // ---------- auditoria dos dados (somente GMAP) ----------
@@ -197,31 +219,53 @@ function renderAud(L){
 
 // ---------- fila ----------
 function filaList(){
+  if(soSel) return [...sel].map(find).filter(Boolean).sort(ordFila);
   const q=$("q").value.trim().toLowerCase(), sp=$("fprazo").value;
-  return filtered().filter(o=>(!sp||o.sp===sp)&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q)))
-    .sort((a,b)=>{const ra=OPEN.includes(a.status)?0:1, rb=OPEN.includes(b.status)?0:1; if(ra!==rb) return ra-rb; return (b.atraso??-1e9)-(a.atraso??-1e9)});
+  return filtered().filter(o=>(!sp||o.sp===sp)&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q))).sort(ordFila);
+}
+function ordFila(a,b){const ra=OPEN.includes(a.status)?0:1, rb=OPEN.includes(b.status)?0:1; if(ra!==rb) return ra-rb; return (b.atraso??-1e9)-(a.atraso??-1e9)}
+// Seleção: fica guardada independente da pesquisa e dos filtros; a barra mostra quantas há e quantas estão fora da lista atual
+let soSel=false;
+function renderSelBar(L){
+  if(!sel.size && soSel) soSel=false;
+  const bar=$("selbar"); bar.hidden=!sel.size; $("v-fila").classList.toggle("comsel",sel.size>0);
+  if(!sel.size) return;
+  const visiveis=new Set(L.map(o=>o.os+"|"+o.emp)), fora=soSel?0:[...sel].filter(k=>!visiveis.has(k)).length;
+  $("selN").textContent=`${nf(sel.size)} selecionada${sel.size>1?"s":""}`;
+  $("selFora").hidden=!fora; $("selFora").textContent=`${nf(fora)} fora desta lista`;
+  $("selVer").textContent=soSel?"Voltar à lista":"Ver só as selecionadas";
+  $("q").disabled=soSel; $("fprazo").disabled=soSel;
+  $("selAviso").hidden=!soSel;
 }
 function renderFila(){
+  if(!sel.size) soSel=false;
+  if(!soSel){ $("q").disabled=false; $("fprazo").disabled=false; }
   const L=filaList(), n=L.length, pages=Math.max(1,Math.ceil(n/PS)); if(page>=pages) page=pages-1;
   const P=L.slice(page*PS,page*PS+PS);
-  $("cnt").textContent=`${nf(n)} O.S.`+(sel.size?` · ${sel.size} selecionada(s)`:"");
+  $("cnt").textContent=`${nf(n)} O.S.`;
   $("bPrintSel").disabled=!sel.size;
   const id=o=>o.os+"|"+o.emp;
   $("tb").tBodies[0].innerHTML = P.length ? P.map(o=>{
     const pz = o.sp==="Vencida" ? `<span class="badge b-bad">Vencida há ${nf(o.atraso)} d</span>` : o.sp==="A vencer" ? `<span class="badge b-warn">Vence em ${nf(-o.atraso)} d</span>` : `<span class="badge ${SPB[o.sp]}">${o.sp}</span>`;
-    return `<tr class="r" data-os="${esc(id(o))}"><td><input type="checkbox" class="ck" ${sel.has(id(o))?"checked":""}></td><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td>
+    return `<tr class="r${sel.has(id(o))?" marc":""}" data-os="${esc(id(o))}"><td><input type="checkbox" class="ck" aria-label="Selecionar O.S. ${esc(o.os)}" ${sel.has(id(o))?"checked":""}></td><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td>
     <td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td>
     <td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td>${fmt(o.criada)}</td><td>${fmt(o.prazo)}</td><td>${pz}</td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td></tr>`}).join("")
     : `<tr><td colspan="9" class="empty">Nenhuma O.S. encontrada.</td></tr>`;
   $("tb").tBodies[0].querySelectorAll("tr.r").forEach(tr=>{
     const ck=tr.querySelector(".ck");
     ck.onclick=e=>{e.stopPropagation(); ck.checked?sel.add(tr.dataset.os):sel.delete(tr.dataset.os); renderFila()};
+    ck.parentElement.onclick=e=>e.stopPropagation();
     tr.onclick=()=>openDet(tr.dataset.os);
   });
-  $("all").checked = P.length && P.every(o=>sel.has(id(o)));
+  $("all").checked = P.length>0 && P.every(o=>sel.has(id(o)));
+  $("all").title=`Marcar as ${P.length} O.S. desta página`;
   $("all").onclick=()=>{P.forEach(o=>$("all").checked?sel.add(id(o)):sel.delete(id(o)));renderFila()};
   $("pinfo").textContent=`Página ${page+1} de ${pages}`; $("prev").disabled=page===0; $("next").disabled=page>=pages-1;
+  renderSelBar(L);
 }
+$("selVer").onclick=()=>{soSel=!soSel; page=0; renderFila()};
+$("selFora").onclick=()=>{soSel=true; page=0; renderFila()};
+$("selLimpar").onclick=()=>{sel.clear(); soSel=false; renderFila()};
 $("prev").onclick=()=>{page--;renderFila()}; $("next").onclick=()=>{page++;renderFila()};
 $("q").oninput=()=>{page=0;renderFila()}; $("fprazo").onchange=()=>{page=0;renderFila()};
 
@@ -256,15 +300,15 @@ $("bPrintSel").onclick=()=>printOS([...sel].map(find).filter(Boolean));
 // ---------- relatórios ----------
 function synth(L){
   const canc=LL=>LL.filter(o=>o.status==="Cancelada").length;
-  const linha=(nome,LL)=>{const s=stats(LL);return [nome,s.total,s.open,s.venc,s.av,s.atend,canc(LL),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
+  const linha=(nome,LL)=>{const s=stats(LL);return [nome,s.total,s.open,s.atend,canc(LL),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
   // linha "Não informada" para registros sem o campo, para que as linhas sempre somem o total
   const grp=(key,vals,name)=>vals.map(v=>linha(name(v),L.filter(o=>o[key]===v))).filter(r=>r[1]).concat(L.some(o=>!o[key])?[linha("Não informada",L.filter(o=>!o[key]))]:[]);
-  const H=["", "Total", "Em aberto", "Vencidas", "A vencer", "Atendidas", "Canceladas", "% atendidas no prazo"];
+  const H=["", "Total", "Em aberto", "Atendidas", "Canceladas", "% atendidas no prazo"];
   const s=stats(L);
   return {H, emp:grp("emp",EMPS,v=>EMPN[v]), prio:grp("prio",PRIOS,v=>v), gre:grp("gre",uniq("gre"),v=>v),
-    tot:["Total",s.total,s.open,s.venc,s.av,s.atend,canc(L),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
+    tot:["Total",s.total,s.open,s.atend,canc(L),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
 }
-const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas. Vencidas e A vencer são parte das Em aberto (não somam ao total).";
+const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas.";
 const ANH=["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Situação do prazo","Dias de atraso","Escola","INEP","GRE","Município","Serviço","Splits","Processo SEI"];
 const anRow=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.sei];
 function xlsx(name,sheets){const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=aoa[Math.min(4,aoa.length-1)].map((_,i)=>({wch:Math.min(48,Math.max(10,...aoa.map(r=>String(r[i]??"").length+2)))}));XLSX.utils.book_append_sheet(wb,ws,n)});XLSX.writeFile(wb,name)}
@@ -273,7 +317,7 @@ function exp(x){
   if(x==="sx"){const S=synth(L); const blk=(t,rows,first)=>[[t],[first].concat(S.H.slice(1))].concat(rows).concat([[]]);
     xlsx("OS_relatorio_sintetico.xlsx",[["Sintético",head.concat([[NOTA_SINT],[]],blk("Por empresa",S.emp.concat([S.tot]),"Empresa"),blk("Por prioridade",S.prio.concat([S.tot]),"Prioridade"),blk("Por GRE",S.gre.concat([S.tot]),"GRE"))]]);}
   if(x==="ax") xlsx("OS_relatorio_analitico.xlsx",[["Analítico",head.concat([ANH],L.map(anRow))]]);
-  const T=(H,R)=>`<table><thead><tr>${H.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${R.map(r=>`<tr>${r.map((c,i)=>`<td ${i&&typeof c==="number"?'style="text-align:right"':""}>${esc(typeof c==="number"&&i===7?c.toLocaleString("pt-BR")+"%":c??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const T=(H,R)=>`<table><thead><tr>${H.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${R.map(r=>`<tr>${r.map((c,i)=>`<td ${i&&typeof c==="number"?'style="text-align:right"':""}>${esc(typeof c==="number"&&i===5?c.toLocaleString("pt-BR")+"%":c??"")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   if(x==="sp"){const S=synth(L); doPrint(`<div class="rp">${ph("Relatório sintético")}<h2>Relatório sintético de O.S.</h2><div class="foot">${esc(filterText())} · Situação em ${fmt(REF)}</div><div class="foot">${NOTA_SINT}</div>
     <h3>Por empresa</h3>${T(["Empresa"].concat(S.H.slice(1)),S.emp.concat([S.tot]))}<h3>Por prioridade</h3>${T(["Prioridade"].concat(S.H.slice(1)),S.prio.concat([S.tot]))}<h3>Por GRE</h3>${T(["GRE"].concat(S.H.slice(1)),S.gre.concat([S.tot]))}</div>`);}
   if(x==="ap"){const H2=["Nº O.S.","Empresa","Status","Prior.","Criada","Prazo","Atendida","Situação do prazo","Escola","Município"];
