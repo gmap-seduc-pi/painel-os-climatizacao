@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [1.1.6] - 2026-11-12
+
+### Adicionado
+- Fila de O.S.: barra de seleção com o total de selecionadas, "Ver só as selecionadas", "Imprimir" e "Limpar seleção". A seleção não depende mais da pesquisa: dá para desmarcar sem digitar o texto de novo.
+- Aviso "N fora desta lista" quando há O.S. selecionadas que o filtro atual esconde, para evitar imprimir um lote sem perceber.
+- No celular, a barra de seleção fica fixa no rodapé da tela.
+
+## [1.1.5] - 2026-11-12
+
+### Adicionado
+- Visão geral, "Maiores atrasos em aberto": seletor "Ver por" O.S., Escola, GRE ou Município. Nos agrupamentos, mostra O.S. vencidas, maior atraso e atraso médio; clicar abre a fila já filtrada.
+
+## [1.1.4] - 2026-11-12
+
+### Alterado
+- Telas de login, de solicitar acesso e de aviso: logotipo e textos centralizados.
+
 ## [1.1.3] - 2026-11-11
 
 ### Alterado
