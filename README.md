@@ -1,19 +1,24 @@
 # Painel de O.S. de Climatização
 
-Painel gerencial das ordens de serviço de climatização das escolas da rede estadual, mantido pela Gerência de Material e Patrimônio (GMAP) da SEDUC-PI.
+Sistema de emissão e acompanhamento das ordens de serviço de climatização das escolas da rede estadual, mantido pela Gerência de Material e Patrimônio (GMAP) da SEDUC-PI.
+
+- **Emissão de O.S.** (desde a 2.0.0): solicitação pelo técnico, aprovação da gerência, número/ano único, prazo por prioridade, atendimento pela empresa com PDF assinado, revisão, stand by, cancelamento e histórico com nome de quem fez.
+- **Modelo da O.S. e empresas:** listas de motivos e ambientes, campos adicionais, área e e-mail de aviso de cada empresa, editáveis pela gerência.
 
 - **Visão geral:** O.S. em aberto, vencidas, a vencer e cumprimento de prazo por empresa e prioridade.
 - **Fila de O.S.:** consulta, filtros, detalhe, impressão de O.S. única ou em lote e relatórios em Excel e PDF.
 - **Auditoria dos dados** (só GMAP): provável backlog artificial, duplicidades, canceladas por motivo e falhas de preenchimento.
 
-Perfis: **GMAP** e **diretoria** veem todas as empresas; cada **empresa** vê só as próprias O.S. A separação é feita no banco (RLS), não no navegador.
+Perfis: **gerência GMAP**, **técnico GMAP** e **diretoria** veem todas as empresas; cada **empresa** vê só as próprias O.S. A separação é feita no banco (RLS), não no navegador.
 
 ## Como funciona
 
 ```
-Planilhas das empresas ──► Codigo.gs (consolida) ──► aba "Consolidado"
-                                  │
-                                  └─► Sincronizacao.gs ──► Supabase (PostgreSQL + RLS) ──► site em docs/
+Site em docs/ ──► Supabase (PostgreSQL + RLS + Storage) ◄── Entidades.gs (planilha ENTIDADES, todo dia)
+                         │
+                         └──► fila de avisos ──► Emails.gs (conta gerenciagmap) ──► e-mail das empresas
+
+Até 30/11: planilhas das empresas ──► Codigo.gs ──► Sincronizacao.gs (só as O.S. antigas)
 ```
 
 ## Estrutura do repositório
@@ -21,7 +26,7 @@ Planilhas das empresas ──► Codigo.gs (consolida) ──► aba "Consolidad
 | Pasta | Conteúdo |
 |---|---|
 | `docs/` | Site do painel (HTML, CSS e JavaScript puros). O nome `docs` é exigido pelo GitHub Pages |
-| `apps-script/` | Cópia versionada do código do Apps Script da planilha geral |
+| `apps-script/` | Cópia versionada dos scripts: planilha geral (Codigo, Sincronizacao, Entidades) e avisos por e-mail (Emails, em projeto separado) |
 | `supabase/migrations/` | Estrutura do banco, uma alteração por arquivo numerado, aplicadas em ordem |
 | `supabase/scripts/` | Rotinas de administração (usuários, consultas de acompanhamento) |
 | `manual/` | Manual de implantação e manutenção |

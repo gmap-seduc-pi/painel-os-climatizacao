@@ -4,6 +4,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.0.0] - 2026-11-16
+
+Emissão de O.S. no sistema. Requer a migração `supabase/migrations/003_emissao_de_os.sql` e os scripts novos.
+
+### Adicionado
+- Perfil Técnico GMAP: emite e audita, sem acesso à aba Usuários.
+- Nova O.S.: escola pela base de entidades, empresa sugerida pela área (fora da área exige justificativa), prioridade com prazo (Urgente 2, Alta 10, Normal 30 dias corridos), tipo de serviço, motivos (um ou mais), ambientes com splits, responsável pela entidade (sugerido na próxima O.S.), origem (Redmine, SEI ou gerência), campos adicionais do modelo, aviso de O.S. em aberto na mesma escola, rascunho guardado.
+- Número/ano gerado na solicitação, em sequência única entre as empresas; recusadas mantêm o número.
+- Aprovação da gerência antes da emissão (individual ou em lote), devolução para correção e recusa; a gerência emite direto. O prazo começa na aprovação.
+- Ações na O.S. por perfil: registrar e corrigir atendimento (PDF assinado obrigatório, justificativa após o prazo), desfazer atendimento (sempre com justificativa), stand by e retomar, revisão sugerida pelo técnico, edição e cancelamento pela gerência (motivos da lista).
+- Histórico de cada O.S. com nome e perfil de quem fez; eventos internos não aparecem para a empresa.
+- Visão geral: O.S. geradas hoje, aguardando aprovação, em revisão e em stand by. O.S. em revisão saem das contagens.
+- Abas Aprovações, Nova O.S., Empresas (área e e-mail de aviso, avisos enviados) e Modelo da O.S. (listas, regras, campos adicionais, pré-visualização e histórico de versões).
+- Auditoria: seção Base de entidades (O.S. diferente da base com correção pela gerência, entidade removida, escola sem INEP, INEP repetido ou fora do padrão, campos vazios, O.S. sem vínculo, mudanças da última importação).
+- PDF da O.S. assinada no armazenamento do Supabase (pasta privada), aberto por link temporário.
+- Avisos por e-mail às empresas pela conta gerenciagmap@gmail.com (`apps-script/Emails.gs`).
+- Importação diária da planilha ENTIDADES (`apps-script/Entidades.gs`), com a coluna ID SISTEMA.
+- Avisos em destaque listando o que falta preencher; ações da O.S. em ícones com descrição.
+
+### Alterado
+- Status: Pendente e Em andamento viram Emitida; Problema vira Stand by.
+- Sincronização com a planilha: até o encerramento (30/11), só atualiza as O.S. antigas; linhas novas são ignoradas e avisadas; O.S. do sistema nunca são tocadas. As antigas ficam só para consulta no sistema até o encerramento.
+
+### Corrigido
+- Botões e confirmações que dependiam do envio nativo de formulário ou de caixas do navegador não funcionavam em páginas protegidas; agora usam janelas próprias.
+
 ## [1.1.6] - 2026-11-12
 
 ### Adicionado
