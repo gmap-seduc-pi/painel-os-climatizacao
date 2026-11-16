@@ -71,16 +71,16 @@ window.iniciarEmissao = function (P) {
 
   // ---------- visão geral: faixa do dia ----------
   function faixaHoje(L) {
-    const hoje = L.filter(o => o.criada === REF && !o.legado && o.status !== "Cancelada").length;
+    const hoje = L.filter(o => o.criada === REF && o.status !== "Cancelada").length;
     const ag = aguardando(), rev = emRevisao(), sb_ = L.filter(o => o.status === "Stand by");
     const itens = [{ v: hoje, l: EMPRESA ? "O.S. recebidas hoje" : "O.S. geradas hoje", h: EQUIPE && ag.length ? `+ ${ag.length} aguardando aprovação` : "emitidas na data de hoje", c: "info", go: () => P.verFila({ de: REF, ate: REF }) }];
-    if (EQUIPE) {
+    if (EQUIPE && !planilhaAtiva()) {
       const velha = ag.map(o => o.solicitado_em).sort()[0];
       itens.push({ v: ag.length, l: "Aguardando aprovação", h: velha ? "a mais antiga " + ha(velha) : "nenhuma pendente", c: ag.length ? "warn" : "", go: () => P.setView("aprov") });
       itens.push({ v: rev.length, l: "Em revisão pela GMAP", h: "fora das contagens até a revisão", c: rev.length ? "rev" : "", go: () => P.setView("aprov") });
     }
     itens.push({ v: sb_.length, l: "Em stand by", h: "o prazo continua correndo", c: sb_.length ? "warn" : "", go: () => P.verFila({ status: "Stand by" }) });
-    $("hoje").innerHTML = itens.map((x, i) => `<button class="hj ${x.c}" data-i="${i}"><b>${nf(x.v)}</b><span>${x.l}</span><small>${esc(x.h)}</small></button>`).join("");
+    $("hoje").innerHTML = (EQUIPE && planilhaAtiva() ? `<div class="faixa info fase"><b>Fase planilha.</b> As O.S. continuam sendo emitidas e atualizadas na planilha geral e chegam aqui pela sincronização. A emissão pelo sistema será ativada na virada; até lá, já dá para cadastrar empresas, preparar o modelo e aprovar os técnicos.</div>` : "") + itens.map((x, i) => `<button class="hj ${x.c}" data-i="${i}"><b>${nf(x.v)}</b><span>${x.l}</span><small>${esc(x.h)}</small></button>`).join("");
     $("hoje").querySelectorAll(".hj").forEach(b => b.onclick = () => itens[+b.dataset.i].go());
   }
   function contarAprov() {
@@ -489,7 +489,7 @@ window.iniciarEmissao = function (P) {
     if (o.revisao) f.push(EQUIPE ? `<div class="faixa rev"><b>Em revisão.</b> Sugestão de ${esc(o.revisao_nome || "")}: ${esc(o.revisao_sugestao || "")}. Fora das contagens até a gerência concluir.</div>`
       : `<div class="faixa rev"><b>Em revisão pela GMAP.</b> Os dados desta O.S. podem mudar. Aguarde a revisão para registrar o atendimento.</div>`);
     if (o.status === "Stand by") f.push(`<div class="faixa warn"><b>Stand by (${o.standby_por === "empresa" ? "pendência informada pela empresa" : "depende da SEDUC"}):</b> ${esc(o.standby_motivo || "")}. O prazo continua correndo.</div>`);
-    if (soPlanilha(o)) f.push(`<div class="faixa info"><b>O.S. da planilha geral.</b> Até o encerramento da planilha (30/11), ela continua sendo atualizada pela planilha e fica só para consulta aqui.</div>`);
+    if (soPlanilha(o)) f.push(`<div class="faixa info"><b>O.S. da planilha geral.</b> Até a virada para o sistema, ela continua sendo atualizada pela planilha e fica só para consulta aqui.</div>`);
     else if (o.legado) f.push(`<div class="mun">Importada da planilha geral.</div>`);
     return f.join("");
   }
@@ -669,7 +669,7 @@ window.iniciarEmissao = function (P) {
     const ultima = MUD.length ? MUD.map(m => m.importado_em).sort().pop() : null;
     const ent = e => [esc(tc(e.nome || "(sem nome)")), esc(e.inep || ""), esc(e.tipologia || ""), esc(tc(e.municipio || "")), esc(greCurta(e.gre))];
     const CARDS = [
-      { id: "div", c: "r", n: diverg.length, t: "O.S. em aberto diferente da base", x: "Os dados da escola na O.S. não batem com a base atual. A O.S. não muda sozinha: a gerência decide. Campo vazio na base nunca apaga o dado da O.S." + (divergPlan ? ` Mais ${divergPlan} O.S. da planilha com diferença: corrija na planilha até 30/11.` : "") },
+      { id: "div", c: "r", n: diverg.length, t: "O.S. em aberto diferente da base", x: "Os dados da escola na O.S. não batem com a base atual. A O.S. não muda sozinha: a gerência decide. Campo vazio na base nunca apaga o dado da O.S." + (divergPlan ? ` Mais ${divergPlan} O.S. da planilha com diferença: corrija na planilha até a virada.` : "") },
       { id: "rem", c: "r", n: removidas.length, t: "Entidade removida da base", x: "O.S. em aberto ligadas a uma entidade que saiu da planilha ENTIDADES" },
       { id: "sem", c: "y", n: semInep.length, t: "Escola sem INEP", x: "Classificada como escola, mas sem INEP. Setores e entidades externas não entram aqui." },
       { id: "rep", c: "y", n: repetido.length, t: "INEP repetido", x: "O mesmo INEP em mais de uma linha da base" },

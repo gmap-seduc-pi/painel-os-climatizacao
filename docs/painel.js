@@ -358,7 +358,9 @@ function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==
   else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else renderFila(); }
 // abas por perfil: técnico vê tudo menos Usuários; diretoria e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
-const ABAS = {aud:EQUIPE, usr:GMAP, aprov:EQUIPE, nova:EQUIPE, emp:EQUIPE, modelo:GMAP};
+// fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
+const EMISSAO = !(CTX.config && CTX.config.planilha_ativa);
+const ABAS = {aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, emp:EQUIPE, modelo:GMAP};
 Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}"]`).hidden=!ok);
 if(GMAP) contarPendentes(CTX);
 // recarrega os dados do banco depois de cada ação e redesenha a tela atual

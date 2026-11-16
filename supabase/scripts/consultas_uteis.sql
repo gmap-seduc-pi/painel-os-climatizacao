@@ -38,8 +38,8 @@ where situacao in ('Falhou', 'Sem e-mail cadastrado') order by id desc;
 -- Última importação da base de entidades e o que mudou
 select importado_em, tipo, nome, campo, antes, depois from public.entidades_mudancas order by id desc limit 50;
 
--- Situação da planilha (ativa até o encerramento de 30/11)
+-- Situação da planilha (planilha_ativa = true: fase planilha; false: emissão pelo sistema)
 select * from public.sistema_config;
 
--- ENCERRAMENTO DA PLANILHA (30/11): rode só depois da última consolidação e sincronização
+-- VIRADA PARA O SISTEMA: rode só depois da última consolidação e sincronização
 -- select public.encerrar_planilha();
