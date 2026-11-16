@@ -159,7 +159,8 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 | Peça | Onde fica | Para que serve |
 |---|---|---|
 | `supabase/migrations/003_emissao_de_os.sql` | SQL Editor do Supabase (uma vez) | Tabelas, regras de acesso, funções da emissão, conversão de status, pasta privada de PDFs |
-| `apps-script/Sincronizacao.gs` | Projeto da planilha consolidada | Até 30/11, atualiza só as O.S. antigas |
+| `supabase/migrations/004_fase_planilha.sql` | SQL Editor, logo depois da 003 | Fase planilha: sincronização espelha a planilha (inclusive O.S. novas) e a emissão pelo sistema fica desligada até a virada |
+| `apps-script/Sincronizacao.gs` | Projeto da planilha consolidada | Sincroniza durante a fase planilha |
 | `apps-script/Entidades.gs` | Mesmo projeto da planilha consolidada | Importa a planilha ENTIDADES todo dia às 5h; cria e mantém a coluna ID SISTEMA |
 | `apps-script/Emails.gs` | Projeto separado na conta gerenciagmap@gmail.com | Envia os avisos às empresas a cada 5 minutos |
 
@@ -172,10 +173,16 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 | Conta gerenciagmap | `PAINEL_URL` | Endereço do painel |
 | Conta gerenciagmap | `RESPONDER_PARA` | (opcional) e-mail que recebe as respostas |
 
-### Regras principais
+### Fase planilha (até a virada)
+
+- A planilha continua sendo a fonte: a sincronização traz O.S. novas, atualiza e remove como antes, sem tocar em O.S. emitidas no sistema.
+- No sistema, as O.S. da planilha ficam só para consulta (aviso "O.S. da planilha geral"). As abas Nova O.S. e Aprovações ficam escondidas e o banco recusa a emissão.
+- Já funcionam: cadastro de e-mail e área das empresas, Modelo da O.S., aprovação de técnicos, base de entidades e auditoria.
+
+### Regras principais (depois da virada)
 
 - Só a equipe da GMAP (gerência e técnicos) emite. A solicitação do técnico recebe o número/ano na hora e espera a aprovação da gerência; o prazo começa na aprovação. A gerência emite direto.
-- Número/ano em sequência única entre as empresas. Recusada mantém o número.
+- Número/ano em sequência única entre as empresas, continuando do maior número do ano (inclusive os da planilha). Recusada mantém o número.
 - Só a gerência aprova, edita O.S. emitidas, cancela (motivo da lista) e altera empresas e o modelo.
 - O técnico sugere correção (revisão): a O.S. sai das contagens e a empresa não registra atendimento até a gerência editar ou manter os dados.
 - A empresa registra o atendimento com o PDF assinado (obrigatório) e justificativa se passou do prazo. Correção pede motivo. Desfazer o atendimento: só quem registrou ou a gerência, sempre com justificativa. O.S. atendida não pode ser cancelada.
@@ -183,10 +190,12 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 - Tudo fica em `os_eventos` com nome e perfil de quem fez.
 - A O.S. guarda os dados da escola do momento da emissão. Mudanças na base aparecem na auditoria e só entram na O.S. por decisão da gerência; campo vazio na base nunca apaga o dado da O.S.
 
-### Encerramento da planilha (30/11)
+### Virada para o sistema (quando a gerência decidir)
 
-1. Peça às empresas que atualizem a planilha até o fim do dia 30/11.
-2. Rode a consolidação uma última vez (ela sincroniza no final) e confira a data em "dados atualizados em".
-3. No SQL Editor do Supabase, rode `select public.encerrar_planilha();`.
-4. No `Codigo.gs`, apague a linha `sincronizar();` do fim de `consolidarPlanilhas` (depois do encerramento o banco recusa a sincronização).
-5. Avise as empresas: a partir de 01/12, todo atendimento é registrado no painel, com o PDF.
+1. Alinhe com as empresas a data da virada e confira na aba Empresas o e-mail e a área de cada uma.
+2. Peça às empresas que deixem a planilha atualizada até a data combinada.
+3. Rode a consolidação uma última vez (ela sincroniza no final) e confira "dados atualizados em" no painel.
+4. No SQL Editor do Supabase, rode `select public.encerrar_planilha();`. A resposta confirma o encerramento e a ativação da emissão.
+5. No `Codigo.gs`, apague a linha `sincronizar();` do fim de `consolidarPlanilhas` (depois da virada o banco recusa a sincronização).
+6. Recarregue o painel (Ctrl+F5): as abas Nova O.S. e Aprovações aparecem para a equipe, e as O.S. antigas passam a ser atualizadas no sistema.
+7. Avise as empresas: a partir de agora, todo atendimento é registrado no painel, com o PDF.

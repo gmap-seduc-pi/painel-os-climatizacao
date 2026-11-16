@@ -302,3 +302,5 @@ input[readonly]{background:var(--bg);color:var(--muted)}
   .mqh select,.mqh .mqb{grid-column:1/-1}
   .mqo{grid-template-columns:auto auto}.mqo .mqa{grid-column:1/-1}
 }
+
+.hoje .fase{grid-column:1/-1;margin:0}

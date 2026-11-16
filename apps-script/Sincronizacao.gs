@@ -15,9 +15,9 @@
  *
  * A chave secreta fica só nas propriedades do script. Nunca coloque essa chave no site.
  *
- * Versão 2.0.0 (emissão de O.S. no sistema): até o encerramento da planilha (30/11), a sincronização
- * só atualiza as O.S. antigas. Linhas NOVAS na planilha são ignoradas (O.S. novas nascem no sistema)
- * e aparecem no aviso. Depois do encerramento, o banco recusa a sincronização.
+ * Versão 2.0.0: enquanto a planilha estiver ativa (fase planilha), a sincronização espelha a planilha,
+ * inclusive as O.S. novas, e nunca toca nas O.S. emitidas no sistema. Na virada (encerrar_planilha no
+ * Supabase), o banco passa a recusar a sincronização e a emissão pelo sistema é liberada.
  */
 
 // Títulos esperados na planilha (comparação sem acento, sem diferença de maiúsculas e espaços)
@@ -59,7 +59,7 @@ function sincronizarComAviso() {
   const r = sincronizar();
   SpreadsheetApp.getUi().alert(
     'Sincronização concluída',
-    `${r.registros} O.S. lidas · ${r.removidos} removidas · ${r.status_alterados} com status alterado.` +
+    `${r.registros} O.S. lidas · ${r.inseridos} novas · ${r.removidos} removidas · ${r.status_alterados} com status alterado.` +
     (r.ignoradas ? `\n\nAtenção: ${r.ignoradas} linha(s) nova(s) na planilha não foram levadas ao painel, porque as O.S. novas agora são emitidas no sistema: ${(r.ignoradas_chaves || []).join(', ')}` : ''),
     SpreadsheetApp.getUi().ButtonSet.OK);
 }

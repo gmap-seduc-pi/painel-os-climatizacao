@@ -6,7 +6,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [2.0.0] - 2026-11-16
 
-Emissão de O.S. no sistema. Requer a migração `supabase/migrations/003_emissao_de_os.sql` e os scripts novos.
+Emissão de O.S. no sistema. Requer as migrações `003_emissao_de_os.sql` e `004_fase_planilha.sql` e os scripts novos.
+Começa na **fase planilha**: a planilha segue como fonte e a emissão pelo sistema fica desligada até a virada (`select public.encerrar_planilha();`).
 
 ### Adicionado
 - Perfil Técnico GMAP: emite e audita, sem acesso à aba Usuários.
@@ -25,7 +26,8 @@ Emissão de O.S. no sistema. Requer a migração `supabase/migrations/003_emissa
 
 ### Alterado
 - Status: Pendente e Em andamento viram Emitida; Problema vira Stand by.
-- Sincronização com a planilha: até o encerramento (30/11), só atualiza as O.S. antigas; linhas novas são ignoradas e avisadas; O.S. do sistema nunca são tocadas. As antigas ficam só para consulta no sistema até o encerramento.
+- Sincronização com a planilha: na fase planilha, espelha a planilha como antes (inclusive O.S. novas) e nunca toca nas O.S. emitidas no sistema; as O.S. da planilha ficam só para consulta no sistema. Depois da virada, o banco recusa a sincronização.
+- Fase planilha: abas Nova O.S. e Aprovações escondidas e emissão recusada pelo banco; empresas, modelo, usuários, base de entidades e auditoria já funcionam.
 
 ### Corrigido
 - Botões e confirmações que dependiam do envio nativo de formulário ou de caixas do navegador não funcionavam em páginas protegidas; agora usam janelas próprias.

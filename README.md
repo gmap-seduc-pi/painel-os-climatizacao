@@ -18,7 +18,7 @@ Site em docs/ ──► Supabase (PostgreSQL + RLS + Storage) ◄── Entidade
                          │
                          └──► fila de avisos ──► Emails.gs (conta gerenciagmap) ──► e-mail das empresas
 
-Até 30/11: planilhas das empresas ──► Codigo.gs ──► Sincronizacao.gs (só as O.S. antigas)
+Até a virada (fase planilha): planilhas das empresas ──► Codigo.gs ──► Sincronizacao.gs (espelha a planilha)
 ```
 
 ## Estrutura do repositório
