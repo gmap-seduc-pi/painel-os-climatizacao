@@ -36,6 +36,8 @@ window.iniciarEmissao = function (P) {
       const dica = c.dica ? `<small>${esc(c.dica)}</small>` : "";
       if (c.tipo === "textarea") return `<label class="fl">${lab}<textarea id="dc_${c.id}" rows="${c.linhas || 3}" maxlength="${c.max || 1000}">${esc(c.valor || "")}</textarea>${dica}</label>`;
       if (c.tipo === "select") return `<label class="fl">${lab}<select id="dc_${c.id}"><option value="">Selecione</option>${c.opcoes.map(o => `<option ${o === c.valor ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>${dica}</label>`;
+      if (c.tipo === "checks") return `<div class="fl" id="dc_${c.id}">${lab}${c.opcoes.map(o => `<label class="chk1"><input type="checkbox" value="${esc(o.valor)}" ${o.marcado ? "checked" : ""}><span>${o.rotulo}</span></label>`).join("")}${dica}</div>`;
+      if (c.tipo === "anexo") return UI.campoAnexo(c.id, lab, c.dica);
       if (c.tipo === "file") return `<label class="fl">${lab}<input type="file" id="dc_${c.id}" accept="${c.aceita || ""}">${dica}</label>`;
       return `<label class="fl">${lab}<input type="${c.tipo || "text"}" id="dc_${c.id}" value="${esc(c.valor || "")}" ${c.maxData ? `max="${c.maxData}"` : ""}>${dica}</label>`;
     };
@@ -46,12 +48,13 @@ window.iniciarEmissao = function (P) {
     const fechar = () => d.classList.remove("on");
     $("dCanc").onclick = fechar;
     d.onclick = e => { if (e.target === d) fechar(); };
-    const valores = () => { const v = {}; (campos || []).forEach(c => { const el = $("dc_" + c.id); v[c.id] = c.tipo === "file" ? el.files[0] || null : el.value.trim(); }); return v; };
+    const valores = () => { const v = {}; (campos || []).forEach(c => { const el = $("dc_" + c.id); v[c.id] = c.tipo === "anexo" ? UI.valorAnexo(el) : c.tipo === "file" ? el.files[0] || null : c.tipo === "checks" ? [...el.querySelectorAll("input:checked")].map(i => i.value) : el.value.trim(); }); return v; };
+    (campos || []).forEach(c => { if (c.tipo === "anexo") UI.ligarAnexo($("dc_" + c.id)); });
     (campos || []).forEach(c => { if (c.aoMudar) $("dc_" + c.id).onchange = () => c.aoMudar(valores()); });
-    const primeiro = d.querySelector("textarea,select,input"); if (primeiro) setTimeout(() => primeiro.focus(), 50);
+    const primeiro = d.querySelector("textarea,select,input:not([type=checkbox]):not([type=file])"); if (primeiro) setTimeout(() => primeiro.focus(), 50);
     UI.aoEnviar($("dBox"), async () => {
       const v = valores();
-      const falta = (campos || []).filter(c => c.obrig && !v[c.id]);
+      const falta = (campos || []).filter(c => c.obrig && (Array.isArray(v[c.id]) ? !v[c.id].length : !v[c.id]));
       if (falta.length) return UI.alerta({ titulo: "Preencha antes de continuar", itens: falta.map(c => c.rot), campos: falta.map(c => $("dc_" + c.id)) });
       const curto = (campos || []).filter(c => c.min && v[c.id] && v[c.id].length < c.min);
       if (curto.length) return UI.alerta({ titulo: "Texto muito curto", itens: curto.map(c => `${c.rot}: escreva pelo menos ${c.min} caracteres.`), campos: curto.map(c => $("dc_" + c.id)) });
@@ -62,6 +65,13 @@ window.iniciarEmissao = function (P) {
       if (e) { $("dErr").textContent = e; return UI.alerta({ titulo: "Não foi possível concluir", itens: e }); }
       fechar();
     });
+  }
+  const DICA_ANEXO = "PDF ou fotos de cada página (no celular, \"Tirar foto\" abre a câmera). Até 10 MB.";
+  async function subirAnexo(o, anexo) {
+    let arq; try { arq = await UI.pdfDoAnexo(anexo); } catch (e) { return { erro: String(e.message || e) }; }
+    const caminho = `${o.id}/${Date.now()}.pdf`;
+    const up = await sb.storage.from("os-assinadas").upload(caminho, arq.blob, { contentType: "application/pdf" });
+    return up.error ? { erro: "Não foi possível enviar o arquivo: " + up.error.message } : { caminho, nome: arq.nome };
   }
   async function rpc(nome, args) {
     const { data, error } = await sb.rpc(nome, args);
@@ -79,14 +89,37 @@ window.iniciarEmissao = function (P) {
       itens.push({ v: ag.length, l: "Aguardando aprovação", h: velha ? "a mais antiga " + ha(velha) : "nenhuma pendente", c: ag.length ? "warn" : "", go: () => P.setView("aprov") });
       itens.push({ v: rev.length, l: "Em revisão pela GMAP", h: "fora das contagens até a revisão", c: rev.length ? "rev" : "", go: () => P.setView("aprov") });
     }
+    const sc = semComprovante().filter(o => !EMPRESA || o.emp === EMPRESA);
+    if ((GMAP || EMPRESA) && sc.length) itens.push({ v: sc.length, l: "Sem a O.S. assinada", h: EMPRESA ? "atendidas pela planilha: anexe o PDF" : "atendidas pela planilha, aguardando o PDF", c: "warn", go: () => P.verFila({ semComp: 1 }) });
+    if (GMAP && observando()) { const pn = pendAbertas(); itens.push({ v: pn.length, l: "Lançamentos na planilha", h: pn.length ? `${pn.filter(x => x.tipo === "nova").length} O.S. novas · ${pn.filter(x => x.tipo === "mudanca").length} mudanças` : "nada a conferir", c: pn.length ? "warn" : "", go: () => P.setView("planilha") }); }
     itens.push({ v: sb_.length, l: "Em stand by", h: "o prazo continua correndo", c: sb_.length ? "warn" : "", go: () => P.verFila({ status: "Stand by" }) });
     $("hoje").innerHTML = (EQUIPE && planilhaAtiva() ? `<div class="faixa info fase"><b>Fase planilha.</b> As O.S. continuam sendo emitidas e atualizadas na planilha geral e chegam aqui pela sincronização. A emissão pelo sistema será ativada na virada; até lá, já dá para cadastrar empresas, preparar o modelo e aprovar os técnicos.</div>` : "") + itens.map((x, i) => `<button class="hj ${x.c}" data-i="${i}"><b>${nf(x.v)}</b><span>${x.l}</span><small>${esc(x.h)}</small></button>`).join("");
     $("hoje").querySelectorAll(".hj").forEach(b => b.onclick = () => itens[+b.dataset.i].go());
   }
+  const observando = () => !planilhaAtiva() && !!(CTX.config && CTX.config.observar_planilha);
+  const pendAbertas = () => (CTX.pendencias || []).filter(x => x.situacao === "aberta");
+  const semComprovante = () => P.todos().filter(o => o.comprovante_pendente && o.status === "Atendida");
+  const pendDaOS = o => pendAbertas().find(x => x.tipo === "mudanca" && String(x.os_id) === String(o.id));
+  // mudança feita na planilha: aplicar no sistema (gerência) ou manter o sistema (equipe, com justificativa)
+  function acaoPendencia(p, a, o) {
+    if (!p) return;
+    const voltar = async msg => { await P.recarregar(); aviso(msg, "ok"); if (o) P.openDet(o.id); };
+    if (a === "aplicar") return dialogo({ titulo: `Aplicar no sistema a mudança da planilha (O.S. ${p.numero})`, botao: "Aplicar no sistema",
+      texto: "Os campos marcados passam a ter o valor da planilha e o valor anterior fica no histórico da O.S. O que ficar desmarcado continua aparecendo como diferença.",
+      campos: [{ id: "campos", rot: "Campos a aplicar", tipo: "checks", obrig: true,
+                 opcoes: (p.diferencas || []).map(d => ({ valor: d.campo, marcado: true, rotulo: `<b>${esc(d.campo)}:</b> ${esc(d.sistema || "vazio")} → <span class="novo">${esc(d.planilha || "vazio")}</span>` })) },
+               { id: "obs", rot: "Observação (opcional)", tipo: "textarea", linhas: 2 }],
+      enviar: async v => { const r = await rpc("pendencia_aplicar", { p_id: p.id, p_campos: v.campos, p_obs: v.obs || null }); if (r.erro) return r.erro; await voltar(`Mudança aplicada na O.S. ${p.numero}.`); return null; } });
+    return dialogo({ titulo: `Manter o sistema (O.S. ${p.numero})`, botao: "Manter o sistema",
+      texto: "O sistema fica como está e a diferença deixa de aparecer. Se a planilha mudar de novo, o aviso volta.",
+      campos: [{ id: "obs", rot: "Por que o valor da planilha não vale", tipo: "textarea", obrig: true, min: 5 }],
+      enviar: async v => { const r = await rpc("pendencia_decidir", { p_id: p.id, p_acao: "manter", p_obs: v.obs }); if (r.erro) return r.erro; await voltar("Registrado: o sistema foi mantido."); return null; } });
+  }
   function contarAprov() {
+    const tp = document.querySelector('.tab[data-v="planilha"]'); if (tp) { const n = pendAbertas().length + (GMAP ? semComprovante().length : 0); tp.innerHTML = "Planilha" + (n ? `<span class="cnt">${n}</span>` : ""); }
     const t = document.querySelector('.tab[data-v="aprov"]'); if (!t) return;
     const n = GMAP ? aguardando().length + emRevisao().length : P.solic().filter(o => o.solicitado_por === CTX.uid && o.status === "Devolvida").length;
-    t.innerHTML = (GMAP ? "Aprovações" : "Minhas solicitações") + (n ? `<span class="cnt">${n}</span>` : "");
+    t.innerHTML = "Aprovações" + (n ? `<span class="cnt">${n}</span>` : "");
   }
 
   // ---------- formulário: nova O.S., corrigir solicitação, editar O.S. emitida ----------
@@ -106,6 +139,17 @@ window.iniciarEmissao = function (P) {
     ambientes: (o.ambientes || []).map(a => /^Outro: /.test(a.ambiente) ? { ambiente: "Outro", outro: a.ambiente.replace(/^Outro: /, ""), splits: a.splits } : { ambiente: a.ambiente, outro: "", splits: a.splits }),
     resp_nome: o.resp_nome || "", resp_contato: o.resp_contato || "",
     respostas: Object.fromEntries((o.respostas || []).map(r => [r.id, r.valor])) });
+
+  // dados de uma O.S. lançada na planilha, para o formulário de importação
+  function dadosDaPlanilha(p) {
+    const d = p.dados || {}, porInep = d.inep ? ents().filter(e => e.ativo && e.inep === String(d.inep)) : [];
+    const desc = norm(d.descricao);
+    const servicos = SERV.filter(s => desc.includes(norm(s)) || desc.includes(norm(SERVN[s] || "")));
+    return { entidade_id: porInep.length === 1 ? porInep[0].id : null, empresa: emps().some(e => e.nome === p.empresa) ? p.empresa : "",
+      prioridade: PRIOS.includes(d.prioridade) ? d.prioridade : "", servicos, splits: d.splits ?? null,
+      observacoes: [d.observacoes].filter(Boolean).join("\n"), origem: d.id_sei ? "sei" : "", origem_num: d.id_sei || "",
+      motivos: [], motivo_outro: "", ambientes: [], resp_nome: "", resp_contato: "", respostas: {}, fora_just: "" };
+  }
 
   // partes do formulário que também aparecem na pré-visualização do modelo
   function htmlMotivos(m, pre) {
@@ -138,14 +182,16 @@ window.iniciarEmissao = function (P) {
 
   function renderNova(arg) {
     if (!EQUIPE) return;
-    const modo = arg && arg.modo || "nova", o = arg && arg.o;
+    const modo = arg && arg.modo || "nova", o = arg && arg.o, pend = arg && arg.pend;
     if (modo === "editar" && !GMAP) return;
     const m = MOD();
-    let ini = o ? dadosDe(o) : null, recuperado = null;
+    let ini = o ? dadosDe(o) : pend ? dadosDaPlanilha(pend) : null, recuperado = null;
     if (modo === "nova" && rascunho) { ini = rascunho.dados; recuperado = rascunho.salvo_em; }
-    F = { modo, o, ent: ini ? entPorId(ini.entidade_id) : null, sujo: false, pronto: false, respAuto: null };
-    const tit = modo === "editar" ? `Editar O.S. nº ${o.os}` : modo === "reenviar" ? `Corrigir a solicitação nº ${o.os}` : "Nova O.S.";
+    F = { modo, o, pend, ent: ini ? entPorId(ini.entidade_id) : null, sujo: false, pronto: false, respAuto: null };
+    const numUsado = pend && P.todos().concat(P.solic()).some(x => x.numero === pend.numero);
+    const tit = modo === "editar" ? `Editar O.S. nº ${o.os}` : modo === "reenviar" ? `Corrigir a solicitação nº ${o.os}` : modo === "importar" ? `Importar a O.S. ${pend.numero} da planilha` : "Nova O.S.";
     const exp = modo === "editar" ? "A empresa recebe um aviso com o que mudou. Se a prioridade mudar, o prazo é recalculado a partir da data de emissão. Tudo fica no histórico."
+      : modo === "importar" ? `Os dados da planilha já estão preenchidos. Confira, complete o que falta (motivo, origem, ambientes) e envie. ${numUsado ? `O número ${esc(pend.numero)} já existe no sistema: esta O.S. vai receber um número novo e o da planilha fica registrado.` : `O número ${esc(pend.numero)} será mantido.`} A data de criação e o prazo da planilha (${fmt(pend.dados.criada_em) || "sem data"} · prazo ${fmt(pend.dados.prazo) || "a calcular"}) também são mantidos.` + (GMAP ? " Como gerência, a O.S. é emitida na hora." : " Depois vai para a aprovação da gerência.")
       : GMAP ? "Como gerência, a O.S. é emitida na hora: o número é gerado e o prazo começa hoje. A empresa recebe o aviso por e-mail."
       : "O número da O.S. é gerado no envio. A gerência aprova a emissão e o prazo só começa a contar na aprovação.";
     const pergs = m.perguntas.filter(q => q.ativo);
@@ -154,6 +200,7 @@ window.iniciarEmissao = function (P) {
       ${recuperado ? `<div class="faixa info" id="nRascAviso"><b>Rascunho recuperado</b> (salvo em ${quando(recuperado)}). Continue de onde parou. <button type="button" class="lnk" id="nRascDesc">Descartar rascunho</button></div>` : ""}
       ${o && o.revisao ? `<div class="faixa rev"><b>Sugestão da revisão (${esc(o.revisao_nome || "GMAP")}):</b> ${esc(o.revisao_sugestao || "")}</div>` : ""}
       ${o && o.status === "Devolvida" ? `<div class="faixa bad"><b>Devolvida pela gerência:</b> ${esc(o.devolucao_obs || "")}</div>` : ""}
+      ${pend ? `<div class="faixa info"><b>Na planilha:</b> ${esc(pend.numero)} · ${esc(EMPN[pend.empresa] || pend.empresa)} · ${esc(tc(pend.dados.escola || ""))} (INEP ${esc(pend.dados.inep || "não informado")}) · ${esc(pend.dados.prioridade || "")} · ${esc(pend.dados.descricao || "")}${pend.dados.splits != null ? " · " + pend.dados.splits + " splits" : ""}${pend.dados.id_sei ? " · SEI " + esc(pend.dados.id_sei) : ""}${pend.dados.observacoes ? `<div class="mun">${esc(pend.dados.observacoes)}</div>` : ""}${!ini.entidade_id ? `<div><b>Escola não encontrada na base pelo INEP: escolha abaixo.</b></div>` : ""}</div>` : ""}
       <div class="fgrid">
         <div class="fcol full" id="bEnt"><label class="fl"><span>1. Escola ou entidade <i class="obr">obrigatório</i></span>
           <input id="nEnt" placeholder="Digite o nome, o INEP ou o município" autocomplete="off"></label>
@@ -179,7 +226,7 @@ window.iniciarEmissao = function (P) {
         ${modo === "editar" ? `<div class="fcol full"><label class="fl"><span>Motivo da edição <i class="obr">obrigatório</i></span><textarea id="nMotivo" rows="2" maxlength="500"></textarea></label></div>` : ""}
       </div>
       <div class="dlgb"><button type="button" class="btn" id="nCanc">${modo === "nova" ? "Limpar formulário" : "Cancelar"}</button>
-        <button type="button" class="btn pri" id="nEnv">${modo === "editar" ? "Salvar alterações" : modo === "reenviar" ? "Reenviar para aprovação" : GMAP ? "Emitir O.S." : "Enviar para aprovação"}</button></div></div>`;
+        <button type="button" class="btn pri" id="nEnv">${modo === "editar" ? "Salvar alterações" : modo === "reenviar" ? "Reenviar para aprovação" : modo === "importar" ? (GMAP ? "Importar e emitir" : "Importar e enviar para aprovação") : GMAP ? "Emitir O.S." : "Enviar para aprovação"}</button></div></div>`;
     // busca da entidade
     const busca = $("nEnt"), res = $("nEntRes");
     busca.oninput = () => {
@@ -208,7 +255,7 @@ window.iniciarEmissao = function (P) {
       }
       if (F.sujo && !(await sairDaNova())) return;
       F.sujo = false;
-      if (modo === "editar") { P.setView("fila"); P.openDet(o.id); } else P.setView("aprov");
+      if (modo === "editar") { P.setView("fila"); P.openDet(o.id); } else if (modo === "importar") P.setView("planilha"); else P.setView("aprov");
     };
     if ($("nRascDesc")) $("nRascDesc").onclick = async () => {
       if (!(await UI.confirmar({ titulo: "Descartar o rascunho?", texto: "O formulário volta a ficar em branco.", botao: "Descartar", perigo: true }))) return;
@@ -350,13 +397,14 @@ window.iniciarEmissao = function (P) {
     return f;
   }
   async function enviarForm() {
-    const { modo, o: alvo } = F;   // guarda o modo: o recarregamento não pode trocar o formulário no meio do envio
+    const { modo, o: alvo, pend } = F;   // guarda o modo: o recarregamento não pode trocar o formulário no meio do envio
     const d = coletar(), falta = conferir(d, modo);
     if (falta.length) return UI.alerta({ titulo: modo === "editar" ? "Faltam informações para salvar" : "Faltam informações para enviar a O.S.", itens: falta.map(x => x[0]), campos: falta.map(x => x[1]) });
     const motivo = $("nMotivo") ? $("nMotivo").value.trim() : "";
     $("nEnv").disabled = true;
     const r = modo === "editar" ? await rpc("os_editar", { p_id: alvo.id, p_dados: d, p_obs: motivo })
       : modo === "reenviar" ? await rpc("os_reenviar", { p_id: alvo.id, p_dados: d })
+      : modo === "importar" ? await rpc("os_importar_planilha", { p_pendencia: pend.id, p_dados: d })
       : await rpc("os_solicitar", { p_dados: d });
     if ($("nEnv")) $("nEnv").disabled = false;
     if (r.erro) return UI.alerta({ titulo: "Não foi possível enviar", itens: r.erro });
@@ -364,6 +412,7 @@ window.iniciarEmissao = function (P) {
     if (modo === "nova") { rascunho = null; guardarRasc(); }
     await P.recarregar();
     if (modo === "editar") { aviso(`O.S. ${alvo.os} alterada. A empresa foi avisada.`, "ok"); P.setView("fila"); P.openDet(alvo.id); }
+    else if (modo === "importar") { aviso(`O.S. ${r.data.numero} importada da planilha${r.data.numero_mudou ? " com número novo" : ""}${r.data.emitida ? " e emitida." : ". Agora vai para a aprovação."}`, "ok"); P.setView("planilha"); }
     else if (r.data && r.data.emitida) { aviso(`O.S. nº ${r.data.numero} emitida. A empresa foi avisada por e-mail.`, "ok"); P.setView("fila"); P.openDet(r.data.id); }
     else { aviso(`O.S. nº ${r.data ? r.data.numero : ""} enviada para aprovação da gerência.`, "ok"); P.setView("aprov"); }
   }
@@ -422,12 +471,16 @@ window.iniciarEmissao = function (P) {
           <td><div class="acoes"><button class="btn pri" data-a="editar">Editar O.S.</button><button class="btn" data-a="manter">Manter dados</button></div></td></tr>`).join("")}</tbody></table></div>`
         : '<div class="empty">Nenhuma O.S. em revisão.</div>'}</div>`;
     } else {
-      const minhas = S.filter(o => o.solicitado_por === CTX.uid);
-      const dev = minhas.filter(o => o.status === "Devolvida"), agm = minhas.filter(o => o.status === "Aguardando aprovação");
-      h += `<div class="card"><h3>Devolvidas para correção (${dev.length})</h3><div class="d">Corrija o que a gerência pediu e reenvie.</div>
-        ${dev.length ? dev.map(o => cartaoSolic(o, `<button class="btn pri" data-a="reenviar">Corrigir e reenviar</button>`)).join("") : '<div class="empty">Nenhuma solicitação devolvida.</div>'}</div>
-        <div class="card"><h3>Minhas solicitações aguardando aprovação (${agm.length})</h3><div class="d">Enquanto aguardam, você ainda pode corrigir. ${aguardando().length - agm.length > 0 ? `Há também ${aguardando().length - agm.length} de outros técnicos.` : ""}</div>
-        ${agm.length ? agm.map(o => cartaoSolic(o, `<button class="btn" data-a="reenviar">Corrigir</button>`)).join("") : '<div class="empty">Nenhuma solicitação sua aguardando.</div>'}</div>`;
+      const dev = S.filter(o => o.status === "Devolvida" && o.solicitado_por === CTX.uid), rev = emRevisao();
+      const minha = o => o.solicitado_por === CTX.uid;
+      h += `<div class="card"><h3>Devolvidas para você corrigir (${dev.length})</h3><div class="d">Corrija o que a gerência pediu e reenvie.</div>
+        ${dev.length ? dev.map(o => cartaoSolic(o, `<button class="btn pri" data-a="reenviar">Corrigir e reenviar</button>`)).join("") : '<div class="empty">Nenhuma solicitação devolvida para você.</div>'}</div>
+        <div class="card"><h3>Aguardando aprovação da gerência (${ag.length})</h3><div class="d">Todas as solicitações da equipe, das mais antigas para as mais novas. Nas suas, você ainda pode corrigir enquanto aguardam.</div>
+        ${ag.length ? ag.map(o => cartaoSolic(o, minha(o) ? `<span class="badge b-info">sua</span><button class="btn" data-a="reenviar">Corrigir</button>` : "")).join("") : '<div class="empty">Nenhuma solicitação aguardando aprovação.</div>'}</div>
+        <div class="card"><h3>Em revisão (${rev.length})</h3><div class="d">O.S. emitidas com correção sugerida, aguardando a gerência. Toque para ver.</div>
+        ${rev.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Sugestão</th></tr></thead><tbody>${rev.map(o => `<tr class="r" data-id="${o.id}">
+          <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
+          <td class="ev">${esc(o.revisao_sugestao || "")}<div class="mun">${esc(o.revisao_nome || "")} · ${ha(o.revisao_em)}</div></td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nenhuma O.S. em revisão.</div>'}</div>`;
     }
     const rec = S.filter(o => o.status === "Recusada" && (GMAP || o.solicitado_por === CTX.uid));
     const devG = GMAP ? S.filter(o => o.status === "Devolvida") : [];
@@ -443,6 +496,7 @@ window.iniciarEmissao = function (P) {
       if (a === "manter") return acaoManter(o);
       decidir(o, a);
     });
+    $("v-aprov").querySelectorAll("tr.r[data-id]").forEach(tr => tr.onclick = () => P.openDet(tr.dataset.id));
     $("v-aprov").querySelectorAll(".selA").forEach(c => c.onchange = () => { const id = +c.closest("[data-id]").dataset.id; c.checked ? selAprov.add(id) : selAprov.delete(id); renderAprov(); });
     if ($("selTodas")) { $("selTodas").checked = ag.length > 0 && ag.every(o => selAprov.has(o.id)); $("selTodas").onchange = () => { ag.forEach(o => $("selTodas").checked ? selAprov.add(o.id) : selAprov.delete(o.id)); renderAprov(); }; }
     if ($("aprLote")) $("aprLote").onclick = () => {
@@ -489,6 +543,12 @@ window.iniciarEmissao = function (P) {
     if (o.revisao) f.push(EQUIPE ? `<div class="faixa rev"><b>Em revisão.</b> Sugestão de ${esc(o.revisao_nome || "")}: ${esc(o.revisao_sugestao || "")}. Fora das contagens até a gerência concluir.</div>`
       : `<div class="faixa rev"><b>Em revisão pela GMAP.</b> Os dados desta O.S. podem mudar. Aguarde a revisão para registrar o atendimento.</div>`);
     if (o.status === "Stand by") f.push(`<div class="faixa warn"><b>Stand by (${o.standby_por === "empresa" ? "pendência informada pela empresa" : "depende da SEDUC"}):</b> ${esc(o.standby_motivo || "")}. O prazo continua correndo.</div>`);
+    if (o.comprovante_pendente && o.status === "Atendida") f.push(`<div class="faixa warn comp"><b>Falta a O.S. assinada.</b> O atendimento veio da planilha geral e foi registrado no sistema sem o PDF.
+      ${GMAP || (EMPRESA && o.emp === EMPRESA) ? `<div class="solb"><button type="button" class="btn pri" data-acao="anexar">Anexar O.S. assinada</button></div>` : ""}</div>`);
+    const pm = GMAP && pendDaOS(o);
+    if (pm) f.push(`<div class="faixa warn plan"><b>A planilha está diferente do sistema</b> (detectado ${ha(pm.atualizado_em)}):
+      ${(pm.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}
+      <div class="solb"><button type="button" class="btn pri" data-acao="plan-aplicar">Aplicar no sistema</button><button type="button" class="btn" data-acao="plan-manter">Manter o sistema</button></div></div>`);
     if (soPlanilha(o)) f.push(`<div class="faixa info"><b>O.S. da planilha geral.</b> Até a virada para o sistema, ela continua sendo atualizada pela planilha e fica só para consulta aqui.</div>`);
     else if (o.legado) f.push(`<div class="mun">Importada da planilha geral.</div>`);
     return f.join("");
@@ -517,11 +577,20 @@ window.iniciarEmissao = function (P) {
     return h.join("");
   }
   function ligarDetalhe(o) {
+    document.querySelectorAll("#det .plan button[data-acao], #det .comp button[data-acao]").forEach(bt => bt.onclick = () => acao(o, bt.dataset.acao));
     document.querySelectorAll("#dAcoes button[data-acao]").forEach(bt => bt.onclick = () => acao(o, bt.dataset.acao));
   }
   function acao(o, a) {
     const ok = msg => async r => { if (r.erro) return r.erro; await depois(o, msg); return null; };
     if (a === "aprovar" || a === "devolver" || a === "recusar") return decidir(o, a);
+    if (a === "anexar") return dialogo({ titulo: `Anexar a O.S. assinada (O.S. ${o.os})`, botao: "Anexar",
+      texto: `Atendimento registrado em ${fmt(o.atend)}, a partir da planilha geral. Envie o PDF da O.S. assinada pela escola.`,
+      campos: [{ id: "pdf", rot: "O.S. assinada", tipo: "anexo", obrig: true, dica: DICA_ANEXO }],
+      enviar: async v => {
+        const s = await subirAnexo(o, v.pdf); if (s.erro) return s.erro;
+        return ok("O.S. assinada anexada.")(await rpc("os_anexar_comprovante", { p_id: o.id, p_pdf_nome: s.nome, p_pdf_caminho: s.caminho }));
+      } });
+    if (a === "plan-aplicar" || a === "plan-manter") return acaoPendencia(pendDaOS(o), a === "plan-aplicar" ? "aplicar" : "manter", o);
     if (a === "pdf") return (async () => {
       if (!o.pdf_caminho || !sb.storage.from("os-assinadas").createSignedUrl) return UI.alerta({ titulo: "PDF indisponível", itens: o.pdf_caminho ? "Não foi possível abrir o arquivo agora." : "Esta O.S. não tem o arquivo guardado no sistema (registro anterior ao envio de PDF)." });
       const { data, error } = await sb.storage.from("os-assinadas").createSignedUrl(o.pdf_caminho, 300);
@@ -538,20 +607,13 @@ window.iniciarEmissao = function (P) {
         campos: [{ id: "data", rot: "Data do atendimento", tipo: "date", obrig: true, valor: corr ? o.atend : REF, maxData: REF },
           { id: "just", rot: "Justificativa", tipo: "textarea", valor: corr ? o.just : "", dica: "Obrigatória se o atendimento for depois do prazo." },
           { id: "pend", rot: "Pendências ou problemas encontrados", tipo: "textarea", valor: corr ? o.pend : "", dica: "Ex.: aparelho sem conserto, falta de ponto elétrico." },
-          { id: "pdf", rot: corr ? "Substituir o PDF da O.S. assinada" : "O.S. assinada (PDF)", tipo: "file", aceita: "application/pdf,.pdf", obrig: !corr, dica: "Somente PDF, até 10 MB." + (corr && o.pdf ? " Atual: " + o.pdf : "") }]
+          { id: "pdf", rot: corr ? "Substituir a O.S. assinada (opcional)" : "O.S. assinada", tipo: "anexo", obrig: !corr, dica: DICA_ANEXO + (corr && o.pdf ? " Atual: " + o.pdf : "") }]
           .concat(corr ? [{ id: "motivo", rot: "Motivo da correção", tipo: "textarea", obrig: true, min: 10 }] : []),
         enviar: async v => {
           if (v.data > REF) return "A data do atendimento não pode ser futura.";
           if (o.prazo && v.data > o.prazo && (v.just || "").length < 10) return "Atendimento depois do prazo: escreva a justificativa (mínimo de 10 caracteres).";
           let pdf = null, caminho = null;
-          if (v.pdf) {
-            if (!/\.pdf$/i.test(v.pdf.name) || (v.pdf.type && v.pdf.type !== "application/pdf")) return "O arquivo precisa ser PDF.";
-            if (v.pdf.size > 10 * 1024 * 1024) return "O PDF passa de 10 MB.";
-            caminho = `${o.id}/${Date.now()}.pdf`;
-            const up = await sb.storage.from("os-assinadas").upload(caminho, v.pdf, { contentType: "application/pdf" });
-            if (up.error) return "Não foi possível enviar o PDF: " + up.error.message;
-            pdf = v.pdf.name;
-          }
+          if (v.pdf) { const s = await subirAnexo(o, v.pdf); if (s.erro) return s.erro; pdf = s.nome; caminho = s.caminho; }
           const r = await rpc("os_atendimento", { p_id: o.id, p_dados: { data: v.data, justificativa: v.just, pendencias: v.pend, pdf_nome: pdf, pdf_caminho: caminho, motivo_correcao: v.motivo || null } });
           return ok(corr ? "Atendimento corrigido." : `Atendimento da O.S. ${o.os} registrado.`)(r);
         } });
@@ -581,7 +643,7 @@ window.iniciarEmissao = function (P) {
       enviar: async v => ok("O.S. em revisão. A gerência vai analisar.")(await rpc("os_revisao", { p_id: o.id, p_sugestao: v.sug })) });
   }
   const PERFIL_NOME = { gmap: "Gerência GMAP", tecnico: "Técnico GMAP", diretoria: "Diretoria", empresa: "Empresa" };
-  const ACAO = { "atualizada pela planilha": "Atualizada pela planilha", "solicitou": "Solicitou a emissão", "reenviou": "Corrigiu e reenviou", "aprovou": "Aprovou e emitiu", "emitiu": "Emitiu", "devolveu": "Devolveu para correção", "recusou": "Recusou",
+  const ACAO = { "atualizada pela planilha": "Atualizada pela planilha", "importou da planilha": "Importou da planilha", "aplicou mudança da planilha": "Aplicou no sistema a mudança da planilha", "manteve o sistema": "Manteve o sistema (mudança da planilha)", "anexou a O.S. assinada": "Anexou a O.S. assinada", "solicitou": "Solicitou a emissão", "reenviou": "Corrigiu e reenviou", "aprovou": "Aprovou e emitiu", "emitiu": "Emitiu", "devolveu": "Devolveu para correção", "recusou": "Recusou",
     "registrou atendimento": "Registrou o atendimento", "corrigiu atendimento": "Corrigiu o atendimento", "desfez atendimento": "Desfez o atendimento", "colocou em stand by": "Colocou em stand by",
     "retomou": "Retomou", "cancelou": "Cancelou", "colocou em revisão": "Colocou em revisão", "em revisão": "Em revisão pela GMAP", "revisão concluída": "Revisão concluída",
     "encerrou revisão sem alterar": "Encerrou a revisão sem alterar", "editou": "Editou a O.S.", "atualizou dados da escola": "Atualizou os dados da escola pela base" };
@@ -838,6 +900,49 @@ window.iniciarEmissao = function (P) {
   }
   const podeSair = v => v === "nova" ? sairDaNova() : v === "modelo" ? sairDoModelo() : Promise.resolve(true);
 
+  // ---------- aba Planilha: lançamentos feitos na planilha depois da virada ----------
+  function renderPlanilha() {
+    const L = CTX.pendencias || [], novas = L.filter(x => x.tipo === "nova" && x.situacao === "aberta"), muds = L.filter(x => x.tipo === "mudanca" && x.situacao === "aberta");
+    const tratadas = L.filter(x => x.situacao !== "aberta").sort((a, b) => String(b.decidido_em || b.atualizado_em).localeCompare(String(a.decidido_em || a.atualizado_em))).slice(0, 80);
+    const SIT = { importada: "b-ok", descartada: "b-gray", aplicada: "b-ok", mantida: "b-info", resolvida: "b-ok" };
+    const usados = new Set(P.todos().concat(P.solic()).map(x => x.numero));
+    $("v-planilha").innerHTML = `<div class="card"><h3>Planilha geral em observação</h3><div class="d">A emissão é feita no sistema. A planilha continua sendo lida no fim de cada consolidação só para comparar: nada nela muda o sistema sozinho.
+      ${CTX.config && CTX.config.planilha_observada_em ? `Última leitura: ${quando(CTX.config.planilha_observada_em)}.` : "Ainda não houve leitura depois da virada."}</div></div>
+      <div class="card"><h3>O.S. novas lançadas na planilha (${novas.length})</h3><div class="d">Importe para gerar a O.S. no sistema com os dados da planilha (número, data e prazo mantidos) ou descarte se foi lançada por engano.</div>
+        ${novas.length ? novas.map(p => { const d = p.dados || {}; return `<div class="sol" data-p="${p.id}"><div class="solh"><b>${esc(p.numero)}</b> <span class="badge b-warn">Nova na planilha</span> <span class="badge ${PRB[d.prioridade] || "b-gray"}">${esc(d.prioridade || "sem prioridade")}</span>
+          <span class="mun">detectada ${ha(p.detectado_em)}</span>${usados.has(p.numero) ? ' <span class="badge b-bad">número já usado no sistema</span>' : ""}</div>
+          <div class="esc">${esc(tc(d.escola || ""))}</div><div class="mun">${esc(tc(d.municipio || ""))} · ${esc(greCurta(d.gre))} · INEP ${esc(d.inep || "não informado")}</div>
+          <div class="solg"><span><small>Empresa</small>${esc(EMPN[p.empresa] || p.empresa)}</span><span><small>Serviço</small>${esc(d.descricao || "")}${d.splits != null ? " · " + d.splits + " splits" : ""}</span>
+            <span><small>Criada / prazo</small>${fmt(d.criada_em) || "?"} · ${fmt(d.prazo) || "?"}</span><span><small>Status na planilha</small>${esc(d.status_planilha || d.status || "")}</span></div>
+          ${d.observacoes ? `<div class="soltx">${esc(d.observacoes)}</div>` : ""}
+          <div class="solb"><button class="btn pri" data-a="importar">Importar</button><button class="btn no" data-a="descartar">Descartar</button></div></div>`; }).join("") : '<div class="empty">Nenhuma O.S. nova na planilha.</div>'}</div>
+      <div class="card"><h3>Mudanças feitas na planilha em O.S. do sistema (${muds.length})</h3><div class="d">Diferenças entre a planilha e o sistema. Nada muda sozinho: aplique no sistema os campos que estiverem certos na planilha ou mantenha o sistema, justificando. As mesmas ações aparecem dentro da O.S.</div>
+        ${muds.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que mudou</th><th></th></tr></thead><tbody>${muds.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">
+          <td><b>${esc(p.numero)}</b><div class="mun">${ha(p.atualizado_em)}</div></td><td>${esc(EMPN[p.empresa] || p.empresa)}</td>
+          <td class="ev">${(p.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</td>
+          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button><button class="btn pri" data-a="aplicar">Aplicar no sistema</button><button class="btn" data-a="manter">Manter o sistema</button></div></td></tr>`).join("")}</tbody></table></div>`
+          : '<div class="empty">Nenhuma diferença entre a planilha e o sistema.</div>'}</div>
+      ${(() => { const sc = semComprovante(); return `<div class="card"><h3>Atendidas pela planilha sem a O.S. assinada (${sc.length})</h3><div class="d">Ao aplicar "Atendida" vinda da planilha, a O.S. fica aqui até a empresa (ou a gerência) anexar o PDF. A empresa recebe um e-mail pedindo o arquivo.</div>
+        ${sc.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Atendida em</th><th></th></tr></thead><tbody>${sc.map(o => `<tr data-os="${o.id}">
+          <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td><td>${fmt(o.atend)}</td>
+          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button></div></td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nenhuma O.S. aguardando a O.S. assinada.</div>'}</div>`; })()}
+      <details class="card"><summary><h3 style="display:inline">Já tratados (${tratadas.length})</h3></summary>
+        ${tratadas.length ? `<div class="tbl" style="max-height:50vh"><table><thead><tr><th>Nº O.S.</th><th>Tipo</th><th>Situação</th><th>Quem</th><th>Observação</th></tr></thead><tbody>${tratadas.map(p => `<tr>
+          <td><b>${esc(p.numero)}</b></td><td>${p.tipo === "nova" ? "O.S. nova" : "Mudança"}</td><td><span class="badge ${SIT[p.situacao] || "b-gray"}">${esc(p.situacao)}</span></td>
+          <td>${esc(p.decidido_por || "")}<div class="mun">${p.decidido_em ? quando(p.decidido_em) : ""}</div></td><td>${esc(p.obs || "")}</td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nada ainda.</div>'}</details>`;
+    const achar = el => { const r = el.closest("[data-p]"); return r ? (CTX.pendencias || []).find(x => String(x.id) === r.dataset.p) : null; };
+    $("v-planilha").querySelectorAll("button[data-a]").forEach(b => b.onclick = async () => {
+      const p = achar(b), a = b.dataset.a;
+      if (a === "importar") { if (!(await P.podeSair())) return; return P.setView("nova", { modo: "importar", pend: p }); }
+      if (a === "abrir") return P.openDet(b.closest("tr").dataset.os);
+      if (a === "descartar") return dialogo({ titulo: `Descartar o lançamento ${p.numero} da planilha`, perigo: true, botao: "Descartar",
+        texto: "A O.S. não será criada no sistema. O descarte fica registrado.",
+        campos: [{ id: "obs", rot: "Por que não importar", tipo: "textarea", obrig: true, min: 5 }],
+        enviar: async v => { const r = await rpc("pendencia_decidir", { p_id: p.id, p_acao: "descartar", p_obs: v.obs }); if (r.erro) return r.erro; await P.recarregar(); aviso("Lançamento descartado.", "ok"); return null; } });
+      if (a === "aplicar" || a === "manter") return acaoPendencia(p, a);
+    });
+  }
+
   marcarAbaNova();
-  return { renderModelo, podeSair, faixaHoje, contarAprov, renderNova, renderAprov, renderEmpresas, faixaDetalhe, botoesDetalhe, ligarDetalhe, historico, audEntidades };
+  return { renderPlanilha, renderModelo, podeSair, faixaHoje, contarAprov, renderNova, renderAprov, renderEmpresas, faixaDetalhe, botoesDetalhe, ligarDetalhe, historico, audEntidades };
 };

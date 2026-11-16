@@ -4,6 +4,36 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.1.0] - 2026-11-16
+
+Requer a migração `supabase/migrations/005_observacao_da_planilha.sql` (depois da 003 e da 004).
+
+### Adicionado
+- Observação da planilha depois da virada: a sincronização continua lendo a planilha só para comparar, sem alterar o sistema.
+- Aba Planilha (só gerência): O.S. novas lançadas na planilha, com Importar (formulário preenchido; número, data e prazo da planilha mantidos; número novo se o da planilha já existir no sistema) e Descartar (com explicação); mudanças feitas na planilha em O.S. do sistema, com valor no sistema e na planilha, e duas ações: **Aplicar no sistema** (gerência escolhe os campos; valor anterior e novo ficam no histórico) ou **Manter o sistema** (com justificativa, quando a planilha está errada); histórico do que foi tratado.
+- A diferença da planilha também aparece dentro da O.S., com as mesmas ações.
+- O.S. marcada como Atendida a partir da planilha fica "sem a O.S. assinada": a empresa recebe e-mail, vê o aviso na visão geral e anexa o PDF dentro da O.S. (a gerência também pode anexar). A pendência some sozinha quando o PDF chega. Lista na aba Planilha e filtro na Fila.
+- Técnicos veem todas as solicitações aguardando aprovação e as O.S. em revisão (antes, só as próprias). A aba passa a se chamar Aprovações para todos.
+- Descrição dos botões de ícone não é mais cortada pelo painel da O.S.
+- Visão geral: contador "Lançamentos na planilha". Detalhe da O.S.: "Lançada na planilha como".
+- E-mail à empresa explica quando a O.S. foi lançada na planilha e registrada no sistema.
+- `encerrar_observacao()` para parar de observar a planilha.
+
+### Alterado
+- Virada (`encerrar_planilha()`): continua observando a planilha em vez de recusar a sincronização. A linha `sincronizar();` do `Codigo.gs` permanece até o fim da observação.
+- O.S. assinada por foto: no registro e na correção do atendimento e em "Anexar O.S. assinada", além de escolher um PDF, dá para tirar fotos (uma por página; no celular abre a câmera). As fotos são reduzidas e juntadas num PDF no próprio aparelho antes do envio, com miniaturas para conferir e remover páginas.
+- Celular (revisão completa):
+  - cabeçalho compacto, com engrenagem, usuários e alterar senha como ícones ao lado de Sair; abas principais com nomes curtos ("Geral", "Fila") dividindo a largura;
+  - filtros recolhidos atrás do botão "Filtros" (mostra quantos estão ativos);
+  - fila em cartões compactos (número, status, escola, empresa, prioridade, situação e prazo) e demais tabelas em cartões com o nome de cada campo;
+  - quadro "Atendimento dentro do prazo" rola para o lado com a coluna da empresa fixa;
+  - detalhe da O.S. com cabeçalho e barra de ações fixos (as ações ficam visíveis sem rolar) e abrindo sempre do topo;
+  - campos com letra de 16 px (o iPhone deixa de dar zoom ao tocar), caixas de marcar maiores e botões com área de toque de pelo menos 40 px;
+  - rótulos longos dos gráficos quebram em linhas em vez de serem cortados; textos longos (número SEI, endereço) quebram sem invadir a coluna ao lado;
+  - barra de salvar do Modelo da O.S. numa linha só.
+- Navegação: Planilha, Auditoria dos dados, Empresas e Modelo da O.S. ficam no menu da engrenagem; Usuários vira um ícone. Os dois mostram o número de avisos.
+- Cabeçalho: na fase planilha mostra a última sincronização; depois da virada, "dados em tempo real".
+
 ## [2.0.0] - 2026-11-16
 
 Emissão de O.S. no sistema. Requer as migrações `003_emissao_de_os.sql` e `004_fase_planilha.sql` e os scripts novos.

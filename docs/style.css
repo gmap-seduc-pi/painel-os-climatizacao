@@ -250,10 +250,9 @@ h3.sec{font-size:17px;margin:0 0 2px}
 .ib.no{color:var(--bad);border-color:#F2B8AC}.ib.no:hover{background:var(--badbg)}
 .ib.sm{min-width:32px;height:32px;padding:0 6px}.ib.sm svg{width:16px;height:16px}
 .ib .ibt{display:none;font-size:11px;font-weight:600;line-height:1.1;text-align:center}
-.ib[data-tip]:hover::after,.ib[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1F2A37;color:#fff;font-size:12px;font-weight:600;padding:5px 8px;border-radius:6px;white-space:nowrap;z-index:5;pointer-events:none}
+.balao{position:fixed;display:none;z-index:90;background:#1F2A37;color:#fff;font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;max-width:260px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 .dacoes{gap:6px}
 @media (hover:none){
-  .ib[data-tip]:hover::after{display:none}
   .dacoes .ib{height:auto;min-height:52px;padding:6px 8px;flex:1 1 30%}
   .dacoes .ib .ibt{display:block}
 }
@@ -304,3 +303,117 @@ input[readonly]{background:var(--bg);color:var(--muted)}
 }
 
 .hoje .fase{grid-column:1/-1;margin:0}
+
+/* 2.1.0: diferença da planilha no detalhe, caixas de marcar no diálogo */
+.faixa.plan .solb{margin-top:8px}
+.chk1{display:flex;gap:8px;align-items:flex-start;font-weight:400;padding:4px 0;cursor:pointer}
+.chk1 input{margin-top:3px;width:auto}
+.novo{color:var(--ok);font-weight:600}
+
+/* 2.1.0: engrenagem e usuários como ícones, com menu */
+.tabs{align-items:flex-end}
+.tabs-fim{margin-left:auto;display:flex;gap:2px;flex:0 0 auto}
+.tab.tabi{display:inline-flex;align-items:center;gap:2px;padding:8px 10px;position:relative}
+.tab.tabi svg{display:block}
+.tab.tabi .cnt{margin-left:2px}
+.tmenu{position:fixed;z-index:80;background:var(--card,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;min-width:220px;display:flex;flex-direction:column}
+.tmenu[hidden]{display:none}
+.tmenu .tab{text-align:left;border-bottom:0;border-left:3px solid transparent;border-radius:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between}
+.tmenu .tab:hover,.tmenu .tab:focus-visible{background:var(--graybg)}
+.tmenu .tab.on{border-left-color:var(--brand2);color:var(--brand);background:var(--infobg)}
+.tmenu .tab[hidden]{display:none}
+.tab[hidden],.tmenu[hidden]{display:none!important}
+.tabs-fim{position:sticky;right:0;background:var(--bg);padding-left:6px}
+
+/* 2.1.0: anexo da O.S. assinada (PDF ou fotos) */
+.vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);border:0;opacity:0}
+.anxb{display:flex;gap:8px;flex-wrap:wrap}
+.anxbt{position:relative;display:inline-flex;align-items:center;gap:6px;cursor:pointer;flex:1 1 160px;justify-content:center;min-height:44px;box-sizing:border-box}
+.anxbt:focus-within{outline:2px solid var(--brand2);outline-offset:2px}
+.anxl:empty{display:none}
+.anxpdf{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-weight:400}
+.anxpdf span{flex:1;min-width:0;display:flex;flex-direction:column}.anxpdf b{overflow-wrap:anywhere}
+.anxfotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+.anxfotos figure{margin:0;position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#f7f7f7}
+.anxfotos img{display:block;width:100%;aspect-ratio:3/4;object-fit:cover}
+.anxfotos figcaption{font-size:11px;font-weight:600;text-align:center;padding:2px 0}
+.anxfotos button{position:absolute;top:4px;right:4px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.65);color:#fff;font-size:18px;line-height:28px;cursor:pointer}
+.anxinfo{display:block;margin-top:4px}
+
+/* ===== 2.1.0: revisão para celular ===== */
+.so-cel{display:none}
+.ftog{display:none}
+.ftog[hidden]{display:none!important}
+#mx{overflow-x:auto}
+.mx th:first-child,.mx td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
+.solg span,.solg small,.ev,.dl div{overflow-wrap:anywhere}
+@media (max-width:700px){
+  .so-pc{display:none}.so-cel{display:inline-flex;align-items:center}
+  /* cabeçalho compacto: ícones de administração e usuários ao lado de Sair */
+  .top{padding:10px 16px;gap:8px 12px}
+  .top h1{font-size:17px}
+  .user{width:100%;gap:6px}
+  .user>div:first-child{flex:1;min-width:0}
+  .user .btn{min-height:40px;min-width:40px;display:inline-flex;align-items:center;justify-content:center;padding:6px 10px}
+  .user .tabs-fim{position:static;margin:0;padding:0;background:none;gap:6px}
+  .user .tabs-fim .tab{border:1px solid var(--line);border-radius:8px;padding:6px 8px;min-height:40px;min-width:40px;justify-content:center;background:#fff}
+  .user .tabs-fim .tab.on{border-color:var(--brand2);color:var(--brand);background:var(--soft)}
+  /* abas principais dividem a largura */
+  .wrap{padding:12px 16px 40px}
+  .tabs{gap:0}
+  .tabs>.tab{flex:1 1 auto;padding:12px 6px;font-size:13px;text-align:center}
+  /* filtros recolhidos */
+  .ftog{display:inline-flex;align-items:center;gap:4px;width:100%;justify-content:center;min-height:44px;margin-bottom:10px}
+  .ftog.ativo{border-color:var(--brand2);color:var(--brand);background:var(--soft);font-weight:600}
+  .filters{display:none}
+  .filters.aberto{display:grid;grid-template-columns:1fr 1fr}
+  .filters.aberto .fbar{grid-column:1/-1;flex-wrap:wrap}
+  .filters[hidden]{display:none!important}
+  /* toque e leitura: campos com 16px (o iPhone não dá zoom) e alvos de pelo menos 40px */
+  input:not([type=checkbox]):not([type=radio]):not([type=file]),select,textarea,.filters select,.filters input,.busca{font-size:16px!important;min-height:44px;box-sizing:border-box}
+  textarea{min-height:88px}
+  input[type=checkbox],input[type=radio]{width:20px;height:20px;flex:0 0 auto}
+  .chks label,.mqo label{min-height:40px}
+  summary{padding:10px 0}
+  .lhelp a{display:inline-block;padding:10px 4px}
+  .fl small,.mun,.obr,small{font-size:12px}
+  .btn{white-space:normal;min-height:40px}
+  .filters label{font-size:12px}
+  /* tabelas viram cartões */
+  .tbl{border:0;background:none;overflow:visible;max-height:none!important}
+  table.tcard,table.tcard tbody,table.tcard tr,table.tcard td{display:block;width:100%;box-sizing:border-box}
+  table.tcard thead{display:none}
+  table.tcard tr{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:0 0 10px;padding:8px 12px}
+  table.tcard td{border:0!important;padding:5px 0 5px 40%;position:relative;text-align:left!important;min-height:24px}
+  table.tcard td[data-label]::before{content:attr(data-label);position:absolute;left:0;top:5px;width:37%;font-size:12px;font-weight:600;color:var(--muted);line-height:1.3}
+  table.tcard td.tc-sem,table.tcard td.tc-cheia{padding-left:0}
+  table.tcard td.tc-sem:empty,table.tcard td[data-label]:empty{display:none}
+  table.tcard td select,table.tcard td input:not([type=checkbox]){width:100%;max-width:100%;min-width:0}
+  .solg small{font-size:12px}
+  table.tcard td .acoes{display:flex;flex-wrap:wrap;gap:6px}
+  table.tcard td .acoes .btn{flex:1 1 auto}
+  table.tcard tr.r:hover td{background:none}
+  /* fila: cartão compacto por O.S. */
+  #tb,#tb tbody{display:block}
+  #tb thead{display:none}
+  #tb tr.r{display:grid;box-sizing:border-box;width:100%;grid-template-columns:30px auto auto minmax(0,1fr);grid-template-areas:"ck num num st" "ck esc esc esc" "ck emp emp emp" "ck prio sp prz";gap:4px 8px;align-items:center;
+    background:var(--card);border:1px solid var(--line);border-radius:10px;margin:0 0 8px;padding:10px 12px}
+  #tb tr.r td{border:0;padding:0;background:none!important;min-width:0}
+  #tb .c-ck{grid-area:ck;align-self:start}#tb .c-num{grid-area:num;font-size:15px}#tb .c-st{grid-area:st;justify-self:end;text-align:right}
+  #tb .c-esc{grid-area:esc}#tb .c-emp{grid-area:emp;font-size:12px;color:var(--muted)}#tb .c-prio{grid-area:prio}#tb .c-sp{grid-area:sp}
+  #tb .c-prz{grid-area:prz;justify-self:end;font-size:12px;color:var(--muted);white-space:nowrap}#tb .c-prz::before{content:"Prazo "}
+  #tb .c-cri{display:none}
+  #tb tr.r.marc{border-color:var(--brand2);background:#F3F8FE}
+  #tb tr:not(.r) td{display:block}
+  .pager{flex-wrap:wrap;justify-content:center}
+  /* detalhe da O.S.: cabeçalho e ações sempre à mão */
+  .panel{padding:0 16px 16px}
+  .dhead{position:sticky;top:0;z-index:3;background:#fff;padding:14px 0 8px;margin-bottom:4px;border-bottom:1px solid var(--line)}
+  .panel .dacoes{position:sticky;bottom:0;z-index:3;background:#fff;margin:12px -16px 0;padding:8px 16px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);box-shadow:0 -4px 12px rgba(0,0,0,.06)}
+  /* barra de salvar do modelo: uma linha */
+  .mbar{padding:8px 10px;gap:6px;flex-wrap:nowrap}
+  .mbar .sp{display:none}
+  .mbar .btn{flex:1 1 0;padding:6px;font-size:13px;line-height:1.2}
+  .hoje .hj small{font-size:12px}
+}
+.dhead{display:flex;justify-content:space-between;align-items:start;gap:8px}

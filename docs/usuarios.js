@@ -10,7 +10,8 @@ async function contarPendentes(CTX) {
   const { data } = await CTX.sb.rpc("listar_usuarios");
   const n = (data || []).filter(u => u.situacao === "pendente").length;
   const tab = document.querySelector('.tab[data-v="usr"]');
-  tab.innerHTML = "Usuários" + (n ? `<span class="cnt">${n}</span>` : "");
+  tab.innerHTML = UI.icone("usuarios") + (n ? `<span class="cnt">${n}</span>` : "");
+  tab.setAttribute("aria-label", "Usuários" + (n ? ` (${n} pedido${n > 1 ? "s" : ""} de acesso)` : ""));
 }
 
 async function renderUsuarios(CTX) {
