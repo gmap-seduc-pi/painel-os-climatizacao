@@ -94,7 +94,7 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
 
 1. No Supabase, em **Authentication**, **ative** o cadastro de novos usuários e **desative** a confirmação de e-mail (sem servidor de e-mail próprio, a confirmação não chega). A segurança vem da aprovação da GMAP.
 2. A pessoa abre o painel, clica em **Solicitar acesso** e informa nome, e-mail, senha e o perfil pretendido (e a empresa, se for o caso). A conta nasce **pendente** e não vê nenhum dado.
-3. Um usuário GMAP abre a aba **Usuários**, confere se a pessoa e o e-mail são de quem dizem ser, ajusta perfil ou empresa se necessário e clica em **Aprovar** ou **Recusar**. A aba mostra um contador de pedidos pendentes.
+3. Um usuário GMAP abre **Usuários** (ícone de pessoas, no canto direito das abas), confere se a pessoa e o e-mail são de quem dizem ser, ajusta perfil ou empresa se necessário e clica em **Aprovar** ou **Recusar**. O ícone mostra um contador de pedidos pendentes.
 4. Na mesma aba, **Bloquear** retira o acesso na hora e **Reativar** devolve. Ninguém altera o próprio acesso. Todas as decisões ficam em `perfis_log`.
 5. **Primeiro usuário GMAP:** como ainda não há quem aprove, ele se cadastra pelo site e é aprovado uma única vez pelo SQL Editor (comando no fim de `supabase/scripts/usuarios.sql`).
 
@@ -113,7 +113,7 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
 
 Para mudar a janela de "a vencer", altere `AVENCER` no início de `docs/painel.js`.
 
-### Aba Auditoria dos dados (só GMAP)
+### Auditoria dos dados (menu da engrenagem)
 
 | Cartão | Critério |
 |---|---|
@@ -143,7 +143,7 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 3. Login com usuário de **empresa**: duas abas, só as O.S. dela; sem filtro de empresa; exportações só com as O.S. dela.
 4. Alterar um status na planilha de uma empresa, rodar **Atualizar > Atualizar Planilha** e conferir no painel.
 5. Exportar relatório sintético e analítico (Excel e PDF) e imprimir uma O.S. e um lote.
-6. Bloquear um usuário de teste na aba **Usuários** e confirmar que ele não vê mais nada.
+6. Bloquear um usuário de teste em **Usuários** e confirmar que ele não vê mais nada.
 
 ## 9. Manutenção
 
@@ -160,6 +160,7 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 |---|---|---|
 | `supabase/migrations/003_emissao_de_os.sql` | SQL Editor do Supabase (uma vez) | Tabelas, regras de acesso, funções da emissão, conversão de status, pasta privada de PDFs |
 | `supabase/migrations/004_fase_planilha.sql` | SQL Editor, logo depois da 003 | Fase planilha: sincronização espelha a planilha (inclusive O.S. novas) e a emissão pelo sistema fica desligada até a virada |
+| `supabase/migrations/005_observacao_da_planilha.sql` | SQL Editor, depois da 004 | Depois da virada, a planilha continua sendo lida só para comparar: O.S. novas e mudanças viram avisos na aba Planilha |
 | `apps-script/Sincronizacao.gs` | Projeto da planilha consolidada | Sincroniza durante a fase planilha |
 | `apps-script/Entidades.gs` | Mesmo projeto da planilha consolidada | Importa a planilha ENTIDADES todo dia às 5h; cria e mantém a coluna ID SISTEMA |
 | `apps-script/Emails.gs` | Projeto separado na conta gerenciagmap@gmail.com | Envia os avisos às empresas a cada 5 minutos |
@@ -190,12 +191,20 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 - Tudo fica em `os_eventos` com nome e perfil de quem fez.
 - A O.S. guarda os dados da escola do momento da emissão. Mudanças na base aparecem na auditoria e só entram na O.S. por decisão da gerência; campo vazio na base nunca apaga o dado da O.S.
 
+### Observação da planilha (depois da virada)
+
+- A sincronização continua rodando no fim da consolidação, mas não altera nada no sistema: só compara.
+- **O.S. nova lançada na planilha:** aparece em **Planilha** (menu da engrenagem, só gerência). **Importar** abre a Nova O.S. preenchida com os dados da planilha; a gerência completa motivo, origem e ambientes. O número da planilha é mantido se estiver livre no sistema (senão, a O.S. recebe outro e o da planilha fica registrado). A data de criação e o prazo da planilha são mantidos. Ao enviar, a O.S. é emitida na hora. **Descartar** pede explicação.
+- **Mudança feita na planilha numa O.S. que já está no sistema** (status, data do atendimento, justificativa, motivo do cancelamento, prioridade, prazo): aparece com o valor no sistema e o da planilha. Duas saídas, na aba Planilha ou dentro da própria O.S.: **Aplicar no sistema** (marca quais campos recebem o valor da planilha, e o valor anterior fica no histórico) ou **Manter o sistema** (com justificativa, quando a planilha está errada ou desatualizada). Se a planilha mudar de novo, o aviso volta.
+- **Atendida aplicada da planilha:** a O.S. fica **sem a O.S. assinada**. A empresa recebe e-mail, vê o aviso na visão geral e anexa o PDF dentro da O.S. com **Anexar O.S. assinada** (a gerência também pode). Enquanto falta o PDF, a O.S. aparece na aba Planilha e no filtro "Sem a O.S. assinada" da Fila.
+- Para parar de observar a planilha de vez: `select public.encerrar_observacao();` no SQL Editor e, depois, apague a linha `sincronizar();` do `Codigo.gs`.
+
 ### Virada para o sistema (quando a gerência decidir)
 
 1. Alinhe com as empresas a data da virada e confira na aba Empresas o e-mail e a área de cada uma.
 2. Peça às empresas que deixem a planilha atualizada até a data combinada.
 3. Rode a consolidação uma última vez (ela sincroniza no final) e confira "dados atualizados em" no painel.
 4. No SQL Editor do Supabase, rode `select public.encerrar_planilha();`. A resposta confirma o encerramento e a ativação da emissão.
-5. No `Codigo.gs`, apague a linha `sincronizar();` do fim de `consolidarPlanilhas` (depois da virada o banco recusa a sincronização).
-6. Recarregue o painel (Ctrl+F5): as abas Nova O.S. e Aprovações aparecem para a equipe, e as O.S. antigas passam a ser atualizadas no sistema.
+5. **Mantenha** a linha `sincronizar();` no `Codigo.gs`: depois da virada ela só observa a planilha (aba Planilha). Ela só sai quando a observação for encerrada.
+6. Recarregue o painel (Ctrl+F5): as abas Nova O.S., Aprovações e Planilha aparecem para a equipe, e as O.S. antigas passam a ser atualizadas no sistema.
 7. Avise as empresas: a partir de agora, todo atendimento é registrado no painel, com o PDF.

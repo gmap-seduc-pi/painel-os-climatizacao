@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.0.0">
+<link rel="stylesheet" href="style.css?v=2.1.0">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -71,19 +71,26 @@
     <div class="div"></div>
     <div><h1>Painel de O.S. de Climatização</h1><div class="sub">Gerência de Material e Patrimônio (GMAP) · <span id="refd"></span></div></div>
     <div class="sp"></div>
-    <div class="user"><div><b id="uNome"></b><div class="sub" id="uPerfil"></div></div><button class="btn" id="bSenha">Alterar senha</button><button class="btn" id="bSair">Sair</button></div>
+    <div class="user"><div><b id="uNome"></b><div class="sub" id="uPerfil"></div></div><button class="btn" id="bSenha" aria-label="Alterar senha" title="Alterar senha"><span class="so-cel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></span><span class="so-pc">Alterar senha</span></button><button class="btn" id="bSair">Sair</button></div>
   </div>
   <div class="wrap">
     <div class="tabs" id="tabs">
-      <button class="tab on" data-v="geral">Visão geral</button>
-      <button class="tab" data-v="fila">Fila de O.S.</button>
+      <button class="tab on" data-v="geral"><span class="so-pc">Visão geral</span><span class="so-cel">Geral</span></button>
+      <button class="tab" data-v="fila"><span class="so-pc">Fila de O.S.</span><span class="so-cel">Fila</span></button>
       <button class="tab" data-v="aprov" hidden>Aprovações</button>
       <button class="tab" data-v="nova" hidden>Nova O.S.</button>
-      <button class="tab" data-v="aud" hidden>Auditoria dos dados</button>
-      <button class="tab" data-v="emp" hidden>Empresas</button>
-      <button class="tab" data-v="modelo" hidden>Modelo da O.S.</button>
-      <button class="tab" data-v="usr" hidden>Usuários</button>
+      <span class="tabs-fim">
+        <button type="button" class="tab tabi" id="tConf" aria-haspopup="menu" aria-expanded="false" aria-controls="mConf" aria-label="Administração" data-tip="Administração" hidden></button>
+        <button type="button" class="tab tabi" data-v="usr" aria-label="Usuários" data-tip="Usuários" hidden></button>
+      </span>
     </div>
+    <div class="tmenu" id="mConf" role="menu" aria-label="Administração" hidden>
+      <button type="button" class="tab" data-v="planilha" role="menuitem" hidden>Planilha</button>
+      <button type="button" class="tab" data-v="aud" role="menuitem" hidden>Auditoria dos dados</button>
+      <button type="button" class="tab" data-v="emp" role="menuitem" hidden>Empresas</button>
+      <button type="button" class="tab" data-v="modelo" role="menuitem" hidden>Modelo da O.S.</button>
+    </div>
+    <button type="button" class="btn ftog" id="fTog" aria-expanded="false" aria-controls="filters">Filtros<span id="fTogN"></span></button>
     <div class="filters" id="filters"></div>
 
     <section id="v-geral">
@@ -111,6 +118,7 @@
 
     <section id="v-aprov" hidden></section>
     <section id="v-nova" hidden></section>
+    <section id="v-planilha" hidden></section>
     <section id="v-emp" hidden></section>
     <section id="v-modelo" hidden></section>
 
@@ -156,11 +164,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=2.0.0"></script>
-<script src="ui.js?v=2.0.0"></script>
-<script src="painel.js?v=2.0.0"></script>
-<script src="usuarios.js?v=2.0.0"></script>
-<script src="emissao.js?v=2.0.0"></script>
-<script src="app.js?v=2.0.0"></script>
+<script src="config.js?v=2.1.0"></script>
+<script src="ui.js?v=2.1.0"></script>
+<script src="painel.js?v=2.1.0"></script>
+<script src="usuarios.js?v=2.1.0"></script>
+<script src="emissao.js?v=2.1.0"></script>
+<script src="app.js?v=2.1.0"></script>
 </body>
 </html>

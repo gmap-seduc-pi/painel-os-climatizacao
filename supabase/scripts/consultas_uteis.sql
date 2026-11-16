@@ -43,3 +43,9 @@ select * from public.sistema_config;
 
 -- VIRADA PARA O SISTEMA: rode só depois da última consolidação e sincronização
 -- select public.encerrar_planilha();
+
+-- ===== Versão 2.1.0: observação da planilha =====
+-- Avisos abertos da planilha (O.S. novas e mudanças)
+select tipo, numero, empresa, detectado_em, diferencas from public.planilha_pendencias where situacao = 'aberta' order by tipo, detectado_em;
+-- Parar de observar a planilha (depois, apague sincronizar(); do Codigo.gs)
+-- select public.encerrar_observacao();

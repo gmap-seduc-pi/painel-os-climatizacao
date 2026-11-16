@@ -15,9 +15,10 @@
  *
  * A chave secreta fica só nas propriedades do script. Nunca coloque essa chave no site.
  *
- * Versão 2.0.0: enquanto a planilha estiver ativa (fase planilha), a sincronização espelha a planilha,
- * inclusive as O.S. novas, e nunca toca nas O.S. emitidas no sistema. Na virada (encerrar_planilha no
- * Supabase), o banco passa a recusar a sincronização e a emissão pelo sistema é liberada.
+ * Versão 2.x: enquanto a planilha estiver ativa (fase planilha), a sincronização espelha a planilha,
+ * inclusive as O.S. novas, e nunca toca nas O.S. emitidas no sistema. Depois da virada (encerrar_planilha
+ * no Supabase), a mesma chamada passa a só OBSERVAR: O.S. novas e mudanças lançadas na planilha viram
+ * avisos na aba Planilha do painel, e nada muda sozinho. Para parar de observar: encerrar_observacao.
  */
 
 // Títulos esperados na planilha (comparação sem acento, sem diferença de maiúsculas e espaços)
@@ -57,6 +58,12 @@ function menuPainel() {
 
 function sincronizarComAviso() {
   const r = sincronizar();
+  if (r.modo === 'observacao') {
+    SpreadsheetApp.getUi().alert('Planilha conferida',
+      `A emissão agora é feita no painel. Na planilha há ${r.novas_abertas} O.S. nova(s) e ${r.mudancas_abertas} mudança(s) aguardando a equipe na aba Planilha do painel.`,
+      SpreadsheetApp.getUi().ButtonSet.OK);
+    return;
+  }
   SpreadsheetApp.getUi().alert(
     'Sincronização concluída',
     `${r.registros} O.S. lidas · ${r.inseridos} novas · ${r.removidos} removidas · ${r.status_alterados} com status alterado.` +

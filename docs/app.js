@@ -36,17 +36,18 @@
     motivo: o.motivo_cancelamento, pend: o.pendencias, pdf: o.pdf_nome, revisao: !!o.revisao
   });
   async function carregarDados(equipe) {
-    const [linhas, ents, emps, muds, modelo, contatos, cfg] = await Promise.all([
+    const [linhas, ents, emps, muds, modelo, contatos, cfg, pend] = await Promise.all([
       carregarTudo("os", "*"),
       carregarTudo("entidades", "*"),
       sb.from("empresas").select("*").order("nome"),
       equipe ? sb.from("entidades_mudancas").select("*").order("id", { ascending: false }).limit(500) : Promise.resolve({ data: [] }),
       sb.from("os_modelo").select("*").limit(1),
       equipe ? sb.from("entidade_contatos").select("*").limit(5000) : Promise.resolve({ data: [] }),
-      sb.from("sistema_config").select("*").limit(1)
+      sb.from("sistema_config").select("*").limit(1),
+      equipe ? sb.from("planilha_pendencias").select("*").order("id", { ascending: false }).limit(1000) : Promise.resolve({ data: [] })
     ]);
     return { rows: linhas.map(paraPainel), entidades: ents, empresasCad: emps.data || [], mudancas: muds.data || [],
-             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false } };
+             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [] };
   }
   async function iniciar() {
     show("carregando");
@@ -83,7 +84,8 @@
       $("uNome").textContent = p.nome || p.email;
       $("uPerfil").textContent = perfilNome;
       const ult = sinc.data && sinc.data[0];
-      $("refd").textContent = "situação em " + hojeBR().split("-").reverse().join("/") + (ult ? " · dados atualizados em " + fmtDH(ult.executada_em) : "");
+      const naPlanilha = dados.config && dados.config.planilha_ativa;
+      $("refd").textContent = "situação em " + hojeBR().split("-").reverse().join("/") + (naPlanilha ? (ult ? " · planilha sincronizada em " + fmtDH(ult.executada_em) : "") : " · dados em tempo real");
 
       show("app");
       const { data: emps } = await sb.rpc("empresas_disponiveis");
