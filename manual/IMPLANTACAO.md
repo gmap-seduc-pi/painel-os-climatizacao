@@ -151,3 +151,42 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 - Indicadores e telas: `docs/painel.js`.
 - Login e carregamento dos dados: `docs/app.js`.
 - Estrutura do banco: nunca edite uma migração já aplicada. Crie um arquivo novo em `supabase/migrations/` com o próximo número (ex.: `002_nova_coluna.sql`), aplique no SQL Editor e registre no `CHANGELOG.md`.
+
+## 10. Versão 2.0.0: emissão de O.S. no sistema
+
+### Peças novas
+
+| Peça | Onde fica | Para que serve |
+|---|---|---|
+| `supabase/migrations/003_emissao_de_os.sql` | SQL Editor do Supabase (uma vez) | Tabelas, regras de acesso, funções da emissão, conversão de status, pasta privada de PDFs |
+| `apps-script/Sincronizacao.gs` | Projeto da planilha consolidada | Até 30/11, atualiza só as O.S. antigas |
+| `apps-script/Entidades.gs` | Mesmo projeto da planilha consolidada | Importa a planilha ENTIDADES todo dia às 5h; cria e mantém a coluna ID SISTEMA |
+| `apps-script/Emails.gs` | Projeto separado na conta gerenciagmap@gmail.com | Envia os avisos às empresas a cada 5 minutos |
+
+### Propriedades dos scripts
+
+| Projeto | Propriedade | Valor |
+|---|---|---|
+| Planilha consolidada | `ENTIDADES_ID` | ID da planilha ENTIDADES (trecho entre `/d/` e `/edit`) |
+| Conta gerenciagmap | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Os mesmos da planilha consolidada |
+| Conta gerenciagmap | `PAINEL_URL` | Endereço do painel |
+| Conta gerenciagmap | `RESPONDER_PARA` | (opcional) e-mail que recebe as respostas |
+
+### Regras principais
+
+- Só a equipe da GMAP (gerência e técnicos) emite. A solicitação do técnico recebe o número/ano na hora e espera a aprovação da gerência; o prazo começa na aprovação. A gerência emite direto.
+- Número/ano em sequência única entre as empresas. Recusada mantém o número.
+- Só a gerência aprova, edita O.S. emitidas, cancela (motivo da lista) e altera empresas e o modelo.
+- O técnico sugere correção (revisão): a O.S. sai das contagens e a empresa não registra atendimento até a gerência editar ou manter os dados.
+- A empresa registra o atendimento com o PDF assinado (obrigatório) e justificativa se passou do prazo. Correção pede motivo. Desfazer o atendimento: só quem registrou ou a gerência, sempre com justificativa. O.S. atendida não pode ser cancelada.
+- Stand by: a empresa (pendência que impede o serviço) ou a GMAP (depende da SEDUC). O prazo não para.
+- Tudo fica em `os_eventos` com nome e perfil de quem fez.
+- A O.S. guarda os dados da escola do momento da emissão. Mudanças na base aparecem na auditoria e só entram na O.S. por decisão da gerência; campo vazio na base nunca apaga o dado da O.S.
+
+### Encerramento da planilha (30/11)
+
+1. Peça às empresas que atualizem a planilha até o fim do dia 30/11.
+2. Rode a consolidação uma última vez (ela sincroniza no final) e confira a data em "dados atualizados em".
+3. No SQL Editor do Supabase, rode `select public.encerrar_planilha();`.
+4. No `Codigo.gs`, apague a linha `sincronizar();` do fim de `consolidarPlanilhas` (depois do encerramento o banco recusa a sincronização).
+5. Avise as empresas: a partir de 01/12, todo atendimento é registrado no painel, com o PDF.

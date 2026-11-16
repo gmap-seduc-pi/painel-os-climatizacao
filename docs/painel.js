@@ -1,12 +1,11 @@
 /* Painel de O.S. de Climatização · GMAP | SEDUC-PI
    Lógica do painel. Recebe os dados já filtrados pelo banco (RLS) e o perfil do usuário. */
 function iniciarPainel(CTX){
-const RAW = CTX.rows;
 const LOGO = CTX.logo;
 const REF = CTX.ref;               // hoje (fuso de Brasília)
 const AVENCER = 3;                // dias para "a vencer"
-const F = ["os","emp","status","prio","criada","prazo","atend","splits","desc","escola","inep","gre","mun","zona","end","sei","obs","just","motivo"];
-const OPEN = ["Pendente","Em andamento","Problema"];
+const OPEN = ["Emitida","Stand by"];                 // em aberto (o prazo continua correndo no stand by)
+const PRE = ["Aguardando aprovação","Devolvida","Recusada"]; // solicitações ainda sem número: fora dos indicadores
 const EMPN = {"CLASSE A":"Classe A","CONCRETIZAR":"Concretizar","R.E. SOLUÇÕES":"R.E. Soluções","NATAL COMPUTER":"Natal Computer"};
 const PRIOS = ["Urgente","Alta","Normal"];
 const SERV = ["MANUT. PREVENTIVA","MANUT. CORRETIVA","INSTALAÇÃO","DESINSTALAÇÃO"];
@@ -20,7 +19,9 @@ const pct = (a,b) => b ? (a/b*100).toLocaleString("pt-BR",{maximumFractionDigits
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tc = s => s.toLowerCase().replace(/(^|[\s(\/-])(\S)/g,(m,a,b)=>a+b.toUpperCase()).replace(/ (Do|De|Da|Dos|Das|E) /g,m=>m.toLowerCase());
 
-const ALL = RAW.map(r => { const o={}; F.forEach((k,i)=>o[k]=r[i]);
+let ALL=[], SOLIC=[], byInep={}, osCount={}, EMPS=[];
+function preparar(rows){
+ const todos = rows.map(r => { const o=Object.assign({},r);
   o.serv = (o.desc||"").split(",").map(s=>s.trim()).filter(Boolean);
   // situação do prazo
   const pz=dd(o.prazo), cr=dd(o.criada), at=dd(o.atend);
@@ -35,15 +36,21 @@ const ALL = RAW.map(r => { const o={}; F.forEach((k,i)=>o[k]=r[i]);
     else { const d=days(pz,ref); o.sp = d<0 ? "Vencida" : d<=AVENCER ? "A vencer" : "No prazo"; o.atraso = -d; }
   }
   return o; });
+ ALL = todos.filter(o=>!PRE.includes(o.status));
+ SOLIC = todos.filter(o=>PRE.includes(o.status));
+ byInep={}; ALL.forEach(o=>{ if(o.inep){ (byInep[o.inep]=byInep[o.inep]||[]).push(o) } });
+ osCount={}; ALL.forEach(o=>osCount[o.os]=(osCount[o.os]||0)+1);
+ EMPS = [...new Set(ALL.map(o=>o.emp).concat((CTX.empresasCad||[]).map(e=>e.nome)))].sort((a,b)=>ALL.filter(o=>o.emp===b).length-ALL.filter(o=>o.emp===a).length);
+ EMPS.forEach(e=>{ if(!EMPN[e]) EMPN[e]=tc(e) });
+}
+preparar(CTX.rows);
 const DENTRO = ["Atendida no prazo","Atendida antes da O.S."];
 const SPB = {"Vencida":"b-bad","A vencer":"b-warn","No prazo":"b-info","Atendida no prazo":"b-ok","Atendida fora do prazo":"b-bad","Cancelada":"b-gray","Sem prazo":"b-gray","Sem data":"b-gray","Atendida antes da O.S.":"b-ok"};
-const STB = {"Atendida":"b-ok","Em andamento":"b-info","Pendente":"b-warn","Problema":"b-bad","Cancelada":"b-gray"};
+const STB = {"Atendida":"b-ok","Emitida":"b-info","Stand by":"b-warn","Cancelada":"b-gray","Aguardando aprovação":"b-warn","Devolvida":"b-bad","Recusada":"b-gray"};
 const PRB = {"Urgente":"b-bad","Alta":"b-warn","Normal":"b-gray"};
 
 // ---------- perfis (simulação do login) ----------
-const EMPS = [...new Set(ALL.map(o=>o.emp))].sort((a,b)=>ALL.filter(o=>o.emp===b).length-ALL.filter(o=>o.emp===a).length);
-EMPS.forEach(e=>{ if(!EMPN[e]) EMPN[e]=tc(e) });
-const PERFIS = [{id:"gmap",n:"GMAP (gerência)"},{id:"dir",n:"Diretoria"}].concat(EMPS.map(e=>({id:"emp:"+e,n:"Empresa: "+EMPN[e]})));
+const PERFIS = [{id:"gmap",n:"GMAP (gerência)"},{id:"tec",n:"Técnico GMAP"},{id:"dir",n:"Diretoria"}].concat(EMPS.map(e=>({id:"emp:"+e,n:"Empresa: "+EMPN[e]})));
 const $ = id => document.getElementById(id);
 let perfil=CTX.perfil, view="geral", page=0, sel=new Set();
 $("lateBy").onchange=()=>render();
@@ -56,7 +63,7 @@ const FD = [
   {k:"emp",n:"Empresa",opts:()=>EMPS.map(e=>[e,EMPN[e]]),hideEmp:true},
   {k:"gre",n:"GRE",opts:()=>uniq("gre").map(g=>[g,g==="SEDE"?"Sede":g.replace(/^0?(\d+)ª - (.*)$/,(m,a,b)=>a+"ª "+tc(b))])},
   {k:"mun",n:"Município",opts:()=>uniq("mun").map(m=>[m,tc(m)])},
-  {k:"status",n:"Status",opts:()=>["Pendente","Em andamento","Problema","Atendida","Cancelada"].map(s=>[s,s])},
+  {k:"status",n:"Status",opts:()=>["Emitida","Stand by","Atendida","Cancelada"].map(s=>[s,s])},
   {k:"prio",n:"Prioridade",opts:()=>PRIOS.map(p=>[p,p])},
   {k:"serv",n:"Tipo de serviço",opts:()=>SERV.map(s=>[s,SERVN[s]])},
 ];
@@ -99,6 +106,8 @@ function stats(L){
 let ch1,ch2;
 Chart.defaults.font.family='Montserrat,"Segoe UI",Arial,sans-serif'; Chart.defaults.color="#5C6670";
 function renderGeral(L){
+  L=L.filter(o=>!o.revisao);   // O.S. em revisão pela GMAP saem temporariamente das contagens
+  EMI.faixaHoje(L);
   const s=stats(L);
   const k=[
     {v:nf(s.open),l:"O.S. em aberto",h:`de ${nf(s.total)} no filtro`,go:{}},
@@ -147,7 +156,7 @@ function renderGeral(L){
   else if(lateBy==="os"){
     const late=venc.sort((a,b)=>b.atraso-a.atraso).slice(0,6);
     $("late").innerHTML = `<table><thead><tr><th>Nº O.S.</th><th>Escola</th>${isEmp?"":"<th>Empresa</th>"}<th>Prioridade</th><th class="n">Dias de atraso</th></tr></thead><tbody>${
-    late.map(o=>`<tr class="r" data-os="${esc(o.os)}|${esc(o.emp)}"><td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||""))}</div></td>${isEmp?"":`<td>${EMPN[o.emp]}</td>`}<td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="n"><b style="color:var(--bad)">${nf(o.atraso)}</b></td></tr>`).join("")}</tbody></table>`;
+    late.map(o=>`<tr class="r" data-os="${o.id}"><td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||""))}</div></td>${isEmp?"":`<td>${EMPN[o.emp]}</td>`}<td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="n"><b style="color:var(--bad)">${nf(o.atraso)}</b></td></tr>`).join("")}</tbody></table>`;
     $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
   } else {
     const chave = o => lateBy==="escola" ? (o.inep||o.escola) : lateBy==="gre" ? (o.gre||"Não informada") : (o.mun||"Não informado");
@@ -166,8 +175,6 @@ function renderGeral(L){
 }
 
 // ---------- auditoria dos dados (somente GMAP) ----------
-const byInep = {}; ALL.forEach(o=>{ if(o.inep){ (byInep[o.inep]=byInep[o.inep]||[]).push(o) } });
-const osCount = {}; ALL.forEach(o=>osCount[o.os]=(osCount[o.os]||0)+1);
 const svTxt = o => o.serv.map(s=>SERVN[s]||s).join(", ");
 const evAt = a => `${a.os} em ${fmt(a.atend)} (${a.splits??"?"} split${a.splits===1?"":"s"}, ${svTxt(a)}, ${EMPN[a.emp]||a.emp})`;
 function backlog(o){
@@ -184,8 +191,8 @@ const CHECKS = [
    f:o=>{const b=backlog(o);return b&&b.tipo==="parc"?b.ev:null}},
   {id:"dup",c:"y",t:"Possível duplicidade em aberto",x:"Outra O.S. em aberto na mesma escola com o mesmo tipo de serviço",
    f:o=>{if(!OPEN.includes(o.status)||!o.inep)return null; const d=(byInep[o.inep]||[]).filter(a=>a!==o&&OPEN.includes(a.status)&&a.serv.some(t=>o.serv.includes(t))); return d.length?"Também em aberto: "+d.map(a=>`${a.os} (${EMPN[a.emp]||a.emp}, criada em ${fmt(a.criada)})`).join("; "):null}},
-  {id:"just",c:"r",t:"Vencida ou com problema sem justificativa",x:"A empresa não registrou justificativa",
-   f:o=>(o.sp==="Vencida"||o.status==="Problema")&&!o.just?(o.status==="Problema"?"Status Problema sem justificativa":`Vencida há ${o.atraso} dias sem justificativa`):null},
+  {id:"just",c:"r",t:"Vencida sem justificativa",x:"Em aberto, vencida, sem justificativa da empresa nem motivo de stand by",
+   f:o=>o.sp==="Vencida"&&!o.just&&!o.standby_motivo?`Vencida há ${o.atraso} dias sem justificativa`:null},
   {id:"semat",c:"y",t:"Atendida sem data de atendimento",x:"Status Atendida, mas a data não foi preenchida",
    f:o=>o.status==="Atendida"&&!o.atend?"Data do atendimento em branco":null},
   {id:"inc",c:"y",t:"Cadastro incompleto",x:"Falta data de criação, prazo, prioridade, município ou INEP",
@@ -212,8 +219,9 @@ function renderAud(L){
   // lista
   const c=CHECKS.find(x=>x.id===audSel), rows=res[audSel].slice().sort((a,b)=>(a[0].criada||"").localeCompare(b[0].criada||""));
   $("audlist").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap"><div><h3>${c.t} (${nf(rows.length)})</h3><div class="d">${c.x}. Clique na O.S. para ver o detalhe.</div></div><button class="btn" id="audx" ${rows.length?"":"disabled"}>Exportar lista (.xlsx)</button></div>
-   <div class="tbl" style="max-height:60vh">${rows.length?`<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>Evidência</th></tr></thead><tbody>${rows.map(([o,ev])=>`<tr class="r" data-os="${esc(o.os+"|"+o.emp)}"><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td><td>${fmt(o.criada)||"n/d"}</td><td class="ev">${esc(ev)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">Nenhuma ocorrência no filtro atual.</div>`}</div>`;
+   <div class="tbl" style="max-height:60vh">${rows.length?`<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>Evidência</th></tr></thead><tbody>${rows.map(([o,ev])=>`<tr class="r" data-os="${o.id}"><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td><td>${fmt(o.criada)||"n/d"}</td><td class="ev">${esc(ev)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">Nenhuma ocorrência no filtro atual.</div>`}</div>`;
   $("audlist").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
+  EMI.audEntidades(L);
   const bx=$("audx"); if(bx) bx.onclick=()=>xlsx("Auditoria_"+audSel+".xlsx",[["Auditoria",[["Auditoria dos dados · "+c.t],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[],["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Escola","INEP","Município","Serviço","Splits","Evidência"]].concat(rows.map(([o,ev])=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??"",ev]))]]);
 }
 
@@ -230,7 +238,7 @@ function renderSelBar(L){
   if(!sel.size && soSel) soSel=false;
   const bar=$("selbar"); bar.hidden=!sel.size; $("v-fila").classList.toggle("comsel",sel.size>0);
   if(!sel.size) return;
-  const visiveis=new Set(L.map(o=>o.os+"|"+o.emp)), fora=soSel?0:[...sel].filter(k=>!visiveis.has(k)).length;
+  const visiveis=new Set(L.map(o=>String(o.id))), fora=soSel?0:[...sel].filter(k=>!visiveis.has(k)).length;
   $("selN").textContent=`${nf(sel.size)} selecionada${sel.size>1?"s":""}`;
   $("selFora").hidden=!fora; $("selFora").textContent=`${nf(fora)} fora desta lista`;
   $("selVer").textContent=soSel?"Voltar à lista":"Ver só as selecionadas";
@@ -244,12 +252,12 @@ function renderFila(){
   const P=L.slice(page*PS,page*PS+PS);
   $("cnt").textContent=`${nf(n)} O.S.`;
   $("bPrintSel").disabled=!sel.size;
-  const id=o=>o.os+"|"+o.emp;
+  const id=o=>String(o.id);
   $("tb").tBodies[0].innerHTML = P.length ? P.map(o=>{
     const pz = o.sp==="Vencida" ? `<span class="badge b-bad">Vencida há ${nf(o.atraso)} d</span>` : o.sp==="A vencer" ? `<span class="badge b-warn">Vence em ${nf(-o.atraso)} d</span>` : `<span class="badge ${SPB[o.sp]}">${o.sp}</span>`;
     return `<tr class="r${sel.has(id(o))?" marc":""}" data-os="${esc(id(o))}"><td><input type="checkbox" class="ck" aria-label="Selecionar O.S. ${esc(o.os)}" ${sel.has(id(o))?"checked":""}></td><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td>
     <td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td>
-    <td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td>${fmt(o.criada)}</td><td>${fmt(o.prazo)}</td><td>${pz}</td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td></tr>`}).join("")
+    <td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td>${fmt(o.criada)}</td><td>${fmt(o.prazo)}</td><td>${pz}</td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span>${o.revisao?`<div><span class="badge b-rev">Em revisão</span></div>`:""}</td></tr>`}).join("")
     : `<tr><td colspan="9" class="empty">Nenhuma O.S. encontrada.</td></tr>`;
   $("tb").tBodies[0].querySelectorAll("tr.r").forEach(tr=>{
     const ck=tr.querySelector(".ck");
@@ -270,16 +278,28 @@ $("prev").onclick=()=>{page--;renderFila()}; $("next").onclick=()=>{page++;rende
 $("q").oninput=()=>{page=0;renderFila()}; $("fprazo").onchange=()=>{page=0;renderFila()};
 
 // ---------- detalhe ----------
-const find = k => ALL.find(o=>o.os+"|"+o.emp===k);
-function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",o.status],["Prioridade",o.prio||"n/d"],["Criada em",fmt(o.criada)],["Prazo",fmt(o.prazo)],["Atendida em",fmt(o.atend)||"n/d"],
-  ["Situação do prazo",o.sp],["Escola",o.escola],["INEP",o.inep],["GRE",o.gre],["Município",tc(o.mun||"")],["Endereço",o.end],["Processo SEI",o.sei],["Serviço",o.serv.map(s=>SERVN[s]||s).join(", ")],
-  ["Qtd. de splits",o.splits??""],["Observações",o.obs],["Justificativa da empresa",o.just],["Motivo do cancelamento",o.motivo]].filter(r=>r[1]!==""&&r[1]!=null)}
+const find = k => ALL.find(o=>String(o.id)===String(k)) || SOLIC.find(o=>String(o.id)===String(k));
+const ORIG={redmine:"Redmine",sei:"Processo SEI",gerencia:"Determinação da gerência"};
+function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",o.status],["Prioridade",o.prio||"n/d"],["Emitida em",fmt(o.criada)],["Prazo",fmt(o.prazo)],["Atendida em",fmt(o.atend)||"n/d"],
+  ["Situação do prazo",PRE.includes(o.status)?"Ainda não emitida":o.sp],["Escola / entidade",o.escola],["INEP",o.inep],["GRE",o.gre],["Município",tc(o.mun||"")],["Zona",o.zona],["Endereço",o.end],
+  ["Origem da demanda",o.origem?ORIG[o.origem]+(o.origem_num?" nº "+o.origem_num:""):""],["Processo SEI",o.sei],["Serviço",o.serv.map(s=>SERVN[s]||s).join(", ")],
+  ["Qtd. de splits",o.splits??""],["Motivo da O.S.",(o.motivos||[]).join("; ")],["Ambientes",(o.ambientes||[]).map(a=>`${a.ambiente}: ${a.splits} split${a.splits===1?"":"s"}`).join(" · ")],
+  ["Responsável pela entidade",o.resp_nome?o.resp_nome+" · "+(o.resp_contato||""):""],["Descrição / observações",o.obs],
+  ...(o.respostas||[]).map(r=>[r.rotulo,Array.isArray(r.valor)?r.valor.join(", "):r.tipo==="data"?fmt(r.valor):r.valor]),["Empresa fora da área sugerida",o.fora_area?("Sim. Justificativa: "+(o.fora_just||"")):""],
+  ["Motivo do stand by",o.status==="Stand by"?o.standby_motivo+(o.standby_por?" ("+(o.standby_por==="empresa"?"empresa":"GMAP")+")":""):""],
+  ["Justificativa da empresa",o.just],["Pendências ou problemas encontrados",o.pend],["O.S. assinada (PDF)",o.pdf],["Motivo do cancelamento",o.motivo],
+  ["Solicitada por",o.solicitado_nome?o.solicitado_nome+" em "+dh(o.solicitado_em):""],["Aprovada por",o.aprovado_nome?o.aprovado_nome+" em "+dh(o.aprovado_em):""],
+  ["Atendimento registrado por",o.atendido_nome||""]].filter(r=>r[1]!==""&&r[1]!=null)}
+const dh=s=>s?new Date(s).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
 function openDet(k){const o=find(k); if(!o) return;
   $("det").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:8px"><div><div class="mun">Ordem de serviço</div><h2>${esc(o.os)}</h2>
-   <span class="badge ${STB[o.status]}">${esc(o.status)}</span> <span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span></div><button class="btn" id="xd">Fechar</button></div>
+   <span class="badge ${STB[o.status]}">${esc(o.status)}</span> ${PRE.includes(o.status)?"":`<span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span>`}</div><button class="btn" id="xd">Fechar</button></div>
+   ${EMI.faixaDetalhe(o)}
    <div class="dl">${osRows(o).slice(0).map(([a,b])=>`<div>${a}</div><div>${esc(b)}</div>`).join("")}</div>
-   <button class="btn pri" id="pd">Imprimir esta O.S.</button>`;
-  $("drawer").classList.add("on"); $("xd").onclick=closeDet; $("pd").onclick=()=>printOS([o]);
+   <div class="dacoes" id="dAcoes">${EMI.botoesDetalhe(o)}${PRE.includes(o.status)?"":UI.botaoIcone("imprimir","Imprimir esta O.S.").replace('data-acao="imprimir"','id="pd"')}</div>
+   <h3 class="hist-t">Histórico</h3><div id="dHist" class="hist"><div class="mun">Carregando…</div></div>`;
+  $("drawer").classList.add("on"); $("xd").onclick=closeDet; if($("pd")) $("pd").onclick=()=>printOS([o]);
+  EMI.ligarDetalhe(o); EMI.historico(o);
 }
 function closeDet(){$("drawer").classList.remove("on")}
 $("drawer").onclick=e=>{if(e.target.id==="drawer")closeDet()};
@@ -290,7 +310,7 @@ const stamp=()=>new Date().toLocaleString("pt-BR");
 const ph=(t)=>`<div class="ph"><div style="display:flex;align-items:center;gap:12px"><img src="${LOGO}" style="height:40px"><div style="border-left:1px solid #ccc;padding-left:12px"><b>GMAP</b><div style="font-size:11px">Gerência de Material e Patrimônio</div></div></div><div style="text-align:right;font-size:11px">${t}<br>Emitido em ${stamp()}</div></div>`;
 function doPrint(html){$("print").innerHTML=html; setTimeout(()=>window.print(),50)}
 function printOS(list){
-  doPrint(list.map(o=>`<div class="pg os">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>
+  doPrint(list.map(o=>`<div class="pg os">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>${o.revisao?'<div class="foot"><b>Em revisão pela GMAP: confirme os dados antes de executar.</b></div>':""}
    <table>${osRows(o).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
    <div class="sig"><div>Responsável técnico da empresa</div><div>Responsável pela unidade escolar</div></div>
    <div class="foot">Documento gerado pelo Painel de O.S. de Climatização. Situação em ${fmt(REF)}.</div></div>`).join(""));
@@ -309,8 +329,8 @@ function synth(L){
     tot:["Total",s.total,s.open,s.atend,canc(L),s.atBase?+(s.atNo/s.atBase*100).toFixed(1):null]};
 }
 const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas.";
-const ANH=["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Situação do prazo","Dias de atraso","Escola","INEP","GRE","Município","Serviço","Splits","Processo SEI"];
-const anRow=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.sei];
+const ANH=["Nº O.S.","Empresa","Status","Em revisão","Prioridade","Emitida em","Prazo","Atendida em","Situação do prazo","Dias de atraso","Escola / entidade","INEP","GRE","Município","Serviço","Splits","Origem","Nº da origem","Processo SEI"];
+const anRow=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.revisao?"Sim":"",o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.origem?ORIG[o.origem]:"",o.origem_num||"",o.sei];
 function xlsx(name,sheets){const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=aoa[Math.min(4,aoa.length-1)].map((_,i)=>({wch:Math.min(48,Math.max(10,...aoa.map(r=>String(r[i]??"").length+2)))}));XLSX.utils.book_append_sheet(wb,ws,n)});XLSX.writeFile(wb,name)}
 function exp(x){
   const L=filaList(), head=[["Painel de O.S. de Climatização · GMAP | SEDUC-PI"],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[]];
@@ -329,12 +349,24 @@ document.addEventListener("click",()=>$("mExp").classList.remove("on"));
 $("mExp").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>exp(b.dataset.x));
 
 // ---------- navegação ----------
-function setView(v){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); ["geral","fila","aud","usr"].forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=v==="usr"; page=0; render()}
-document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>setView(t.dataset.v));
-function render(){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX); else renderFila(); }
-document.querySelector('.tab[data-v="aud"]').hidden = perfil!=="gmap";
-document.querySelector('.tab[data-v="usr"]').hidden = perfil!=="gmap";
-if(perfil==="gmap") contarPendentes(CTX);
+const VIEWS=["geral","fila","aprov","nova","aud","emp","modelo","usr"];
+const SEMFILTRO=["usr","aprov","nova","emp","modelo"];
+function setView(v,arg){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); VIEWS.forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=SEMFILTRO.includes(v); page=0; render(arg); window.scrollTo(0,0)}
+// trocar de aba pergunta antes se houver formulário preenchido (O.S. ou modelo)
+document.querySelectorAll(".tab").forEach(t=>t.onclick=async()=>{ const v=t.dataset.v; if(v===view) return; if(!(await EMI.podeSair(view))) return; setView(v); });
+function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX);
+  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else renderFila(); }
+// abas por perfil: técnico vê tudo menos Usuários; diretoria e empresa só consultam
+const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
+const ABAS = {aud:EQUIPE, usr:GMAP, aprov:EQUIPE, nova:EQUIPE, emp:EQUIPE, modelo:GMAP};
+Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}"]`).hidden=!ok);
+if(GMAP) contarPendentes(CTX);
+// recarrega os dados do banco depois de cada ação e redesenha a tela atual
+async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); if(view!=="nova") render(); }
+const EMI = window.iniciarEmissao({CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
+  todos:()=>ALL, solic:()=>SOLIC, find, openDet, closeDet, setView, recarregar, podeSair:()=>EMI.podeSair(view), xlsx, stamp:()=>new Date().toLocaleString("pt-BR"),
+  verFila:(filtro)=>{ FV=Object.assign({},filtro||{}); buildFilters(); $("fprazo").value=""; setView("fila"); }});
+EMI.contarAprov();
 buildFilters(); render();
 
 }

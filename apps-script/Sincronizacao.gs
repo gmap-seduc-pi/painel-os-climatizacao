@@ -14,6 +14,10 @@
  *    sincronização precisar rodar independente da consolidação.
  *
  * A chave secreta fica só nas propriedades do script. Nunca coloque essa chave no site.
+ *
+ * Versão 2.0.0 (emissão de O.S. no sistema): até o encerramento da planilha (30/11), a sincronização
+ * só atualiza as O.S. antigas. Linhas NOVAS na planilha são ignoradas (O.S. novas nascem no sistema)
+ * e aparecem no aviso. Depois do encerramento, o banco recusa a sincronização.
  */
 
 // Títulos esperados na planilha (comparação sem acento, sem diferença de maiúsculas e espaços)
@@ -47,6 +51,7 @@ const FUSO = 'America/Sao_Paulo';
 function menuPainel() {
   SpreadsheetApp.getUi().createMenu('Painel de O.S.')
     .addItem('Sincronizar agora', 'sincronizarComAviso')
+    .addItem('Importar base de entidades', 'importarEntidadesComAviso')
     .addToUi();
 }
 
@@ -54,7 +59,8 @@ function sincronizarComAviso() {
   const r = sincronizar();
   SpreadsheetApp.getUi().alert(
     'Sincronização concluída',
-    `${r.registros} O.S. enviadas · ${r.inseridos} novas · ${r.removidos} removidas · ${r.status_alterados} com status alterado.`,
+    `${r.registros} O.S. lidas · ${r.removidos} removidas · ${r.status_alterados} com status alterado.` +
+    (r.ignoradas ? `\n\nAtenção: ${r.ignoradas} linha(s) nova(s) na planilha não foram levadas ao painel, porque as O.S. novas agora são emitidas no sistema: ${(r.ignoradas_chaves || []).join(', ')}` : ''),
     SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
@@ -101,19 +107,9 @@ function sincronizar() {
     }
     if (!linhas.length) throw new Error('Nenhuma O.S. encontrada; nada foi enviado.');
 
-    const headers = { apikey: chave };
-    if (chave.indexOf('eyJ') === 0) headers.Authorization = 'Bearer ' + chave; // chave service_role no formato antigo (JWT)
-    const resp = UrlFetchApp.fetch(url.replace(/\/$/, '') + '/rest/v1/rpc/sincronizar_os', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: headers,
-      payload: JSON.stringify({ payload: linhas, origem: 'apps-script' }),
-      muteHttpExceptions: true
-    });
-    const codigo = resp.getResponseCode();
-    if (codigo >= 300) throw new Error(`Supabase respondeu ${codigo}: ${resp.getContentText().slice(0, 500)}`);
-    const r = JSON.parse(resp.getContentText());
+    const r = chamarSupabase('sincronizar_os', { payload: linhas, origem: 'apps-script' });
     console.log('Sincronização: ' + JSON.stringify(r));
+    if (r.ignoradas) console.warn('Linhas novas na planilha ignoradas (O.S. novas nascem no sistema): ' + (r.ignoradas_chaves || []).join(', '));
     if (ignoradas.length) console.warn('Linhas sem número de O.S. ou empresa, não enviadas ao painel: ' + ignoradas.join(', '));
     return r;
   } finally {
@@ -128,6 +124,24 @@ function instalarGatilho() {
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('sincronizar').timeBased().everyMinutes(5).create();
   sincronizar();
+}
+
+/** Chama uma função do banco com a chave secreta (propriedades SUPABASE_URL e SUPABASE_SECRET_KEY). */
+function chamarSupabase(funcao, corpo) {
+  const props = PropertiesService.getScriptProperties();
+  const url = props.getProperty('SUPABASE_URL'), chave = props.getProperty('SUPABASE_SECRET_KEY');
+  if (!url || !chave) throw new Error('Configure SUPABASE_URL e SUPABASE_SECRET_KEY nas propriedades do script.');
+  const headers = { apikey: chave };
+  if (chave.indexOf('eyJ') === 0) headers.Authorization = 'Bearer ' + chave; // chave service_role no formato antigo (JWT)
+  const resp = UrlFetchApp.fetch(url.replace(/\/$/, '') + '/rest/v1/rpc/' + funcao, {
+    method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify(corpo), muteHttpExceptions: true
+  });
+  const codigo = resp.getResponseCode(), texto = resp.getContentText();
+  if (codigo >= 300) {
+    let msg = texto; try { msg = JSON.parse(texto).message || texto; } catch (e) {}
+    throw new Error(`Supabase respondeu ${codigo}: ${String(msg).slice(0, 500)}`);
+  }
+  return texto ? JSON.parse(texto) : null;
 }
 
 // ---------- utilitários ----------

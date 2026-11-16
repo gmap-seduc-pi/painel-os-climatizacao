@@ -1,7 +1,7 @@
 /* Painel de O.S. de Climatização · GMAP | SEDUC-PI
    Aba "Usuários": aprovação de pedidos de acesso e gestão de usuários (somente GMAP).
    As permissões são conferidas no banco; esta tela só chama as funções autorizadas. */
-const PERFIL_NOME = { gmap: "GMAP (gerência)", diretoria: "Diretoria", empresa: "Empresa" };
+const PERFIL_NOME = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", diretoria: "Diretoria", empresa: "Empresa" };
 const SIT = { pendente: ["Pendente", "b-warn"], aprovado: ["Ativo", "b-ok"], recusado: ["Recusado", "b-gray"], bloqueado: ["Bloqueado", "b-bad"] };
 const uEsc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const uData = s => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "nunca";
@@ -49,11 +49,11 @@ async function renderUsuarios(CTX) {
     if (acao === "aprovar") {
       perfil = tr.querySelector('select[data-f="perfil"]').value;
       empresa = tr.querySelector('select[data-f="empresa"]').value || null;
-      if (perfil === "empresa" && !empresa) { $("uMsg").textContent = "Selecione a empresa antes de aprovar."; return; }
+      if (perfil === "empresa" && !empresa) return UI.alerta({ titulo: "Selecione a empresa", itens: "Para aprovar como Empresa, escolha a empresa na linha do usuário.", campos: [tr.querySelector('select[data-f="empresa"]')] });
     }
     const textos = { aprovar: `Aprovar o acesso de ${nome} como ${PERFIL_NOME[perfil]}${empresa ? " (" + empresa + ")" : ""}?`,
       recusar: `Recusar o pedido de ${nome}?`, bloquear: `Bloquear o acesso de ${nome}? O bloqueio vale na hora.`, reativar: `Reativar o acesso de ${nome}?` };
-    if (!confirm(textos[acao])) return;
+    if (!(await UI.confirmar({ titulo: textos[acao], botao: { aprovar: "Aprovar", recusar: "Recusar", bloquear: "Bloquear", reativar: "Reativar" }[acao], perigo: acao === "recusar" || acao === "bloquear" }))) return;
     b.disabled = true;
     const { error: e } = await CTX.sb.rpc("decidir_usuario", { p_usuario: id, p_acao: acao, p_perfil: perfil, p_empresa: empresa });
     if (e) { $("uMsg").textContent = "Não foi possível concluir: " + e.message; b.disabled = false; return; }
