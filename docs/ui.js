@@ -87,6 +87,8 @@
     revisao: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', editar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     manter: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>', aprovar: '<path d="M20 6 9 17l-5-5"/>', devolver: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
     config: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+    limpar: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+    anterior: '<path d="m15 18-6-6 6-6"/>', proxima: '<path d="m9 18 6-6-6-6"/>',
     usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
     recusar: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>', reenviar: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
     imprimir: '<path d="M6 9V2h12v7"/><rect x="6" y="14" width="12" height="8"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>',
@@ -203,7 +205,7 @@
 
   // ---------- celular: tabelas viram cartões; cada célula recebe o título da coluna ----------
   function rotularTabelas() {
-    document.querySelectorAll("#app table:not(.mx):not(#tb), #dlg table:not(.mx)").forEach(t => {
+    document.querySelectorAll("#app table:not(.mx):not(#tb):not(.nocard), #dlg table:not(.mx):not(.nocard)").forEach(t => {
       const th = t.tHead && t.tHead.rows[0] ? [...t.tHead.rows[0].cells].map(c => c.textContent.trim()) : null; if (!th) return;
       t.classList.add("tcard");
       for (const tb of t.tBodies) for (const tr of tb.rows) [...tr.cells].forEach((td, i) => {
@@ -216,5 +218,28 @@
   new MutationObserver(() => { if (agendado) return; agendado = true; requestAnimationFrame(() => { agendado = false; rotularTabelas(); }); })
     .observe(document.documentElement, { childList: true, subtree: true });
 
-  window.UI = { aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf };
+  // ---------- arquivo .zip simples (sem compressão: os PDFs já são comprimidos) ----------
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = b => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+  /** Junta arquivos [{nome, bytes}] num .zip. Nomes repetidos ganham (2), (3)... */
+  function zip(arquivos) {
+    const enc = new TextEncoder(), partes = [], central = []; let pos = 0; const usados = {};
+    const agora = new Date(), hora = (agora.getHours() << 11) | (agora.getMinutes() << 5) | (agora.getSeconds() >> 1), data = ((agora.getFullYear() - 1980) << 9) | ((agora.getMonth() + 1) << 5) | agora.getDate();
+    for (const a of arquivos) {
+      let nome = a.nome; if (usados[nome]) { usados[nome]++; nome = nome.replace(/(\.[^.]+)?$/, m => ` (${usados[a.nome]})` + m); } else usados[nome] = 1;
+      const n = enc.encode(nome), b = a.bytes, crc = crc32(b);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, hora, true); h.setUint16(12, data, true);
+      h.setUint32(14, crc, true); h.setUint32(18, b.length, true); h.setUint32(22, b.length, true); h.setUint16(26, n.length, true); h.setUint16(28, 0, true);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, hora, true); c.setUint16(14, data, true);
+      c.setUint32(16, crc, true); c.setUint32(20, b.length, true); c.setUint32(24, b.length, true); c.setUint16(28, n.length, true); c.setUint32(42, pos, true);
+      partes.push(h, n, b); central.push(c, n); pos += 30 + n.length + b.length;
+    }
+    const tamC = central.reduce((s, x) => s + (x.byteLength ?? x.length), 0), fim = new DataView(new ArrayBuffer(22));
+    fim.setUint32(0, 0x06054b50, true); fim.setUint16(8, arquivos.length, true); fim.setUint16(10, arquivos.length, true); fim.setUint32(12, tamC, true); fim.setUint32(16, pos, true);
+    return new Blob([...partes, ...central, fim], { type: "application/zip" });
+  }
+
+  window.UI = { aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
 })();

@@ -37,7 +37,7 @@ window.iniciarEmissao = function (P) {
       if (c.tipo === "textarea") return `<label class="fl">${lab}<textarea id="dc_${c.id}" rows="${c.linhas || 3}" maxlength="${c.max || 1000}">${esc(c.valor || "")}</textarea>${dica}</label>`;
       if (c.tipo === "select") return `<label class="fl"${c.oculto ? " hidden" : ""}>${lab}<select id="dc_${c.id}"><option value="">Selecione</option>${c.opcoes.map(o => { const v = typeof o === "object" ? o.v : o, t = typeof o === "object" ? o.t : o;
         return `<option value="${esc(v)}" ${v === c.valor ? "selected" : ""}>${esc(t)}</option>`; }).join("")}</select>${dica}</label>`;
-      if (c.tipo === "checks") return `<div class="fl" id="dc_${c.id}">${lab}${c.opcoes.map(o => `<label class="chk1"><input type="checkbox" value="${esc(o.valor)}" ${o.marcado ? "checked" : ""}><span>${o.rotulo}</span></label>`).join("")}${dica}</div>`;
+      if (c.tipo === "checks") return `<div class="fl" id="dc_${c.id}"${c.oculto ? " hidden" : ""}>${lab}${c.opcoes.map(o => `<label class="chk1"><input type="checkbox" value="${esc(o.valor)}" ${o.marcado ? "checked" : ""}><span>${o.rotulo}</span></label>`).join("")}${dica}</div>`;
       if (c.tipo === "anexo") return UI.campoAnexo(c.id, lab, c.dica);
       if (c.tipo === "file") return `<label class="fl">${lab}<input type="file" id="dc_${c.id}" accept="${c.aceita || ""}">${dica}</label>`;
       return `<label class="fl"${c.oculto ? " hidden" : ""}>${lab}<input type="${c.tipo || "text"}" id="dc_${c.id}" value="${esc(c.valor || "")}" ${c.maxData ? `max="${c.maxData}"` : ""} ${c.max ? `maxlength="${c.max}"` : ""}>${dica}</label>`;
@@ -69,7 +69,9 @@ window.iniciarEmissao = function (P) {
       fechar();
     });
   }
-  UI.dialogo = dialogo;
+  UI.dialogo = dialogo; UI.aviso = aviso;
+  // O.S. assinada exigida só nas O.S. emitidas a partir da data configurada pela gerência
+  const exigePdf = o => !!o.criada && o.criada >= ((CTX.config && CTX.config.pdf_obrigatorio_desde) || "2026-12-01");
   const DICA_ANEXO = "PDF ou fotos de cada página (no celular, \"Tirar foto\" abre a câmera). Até 10 MB.";
   async function subirAnexo(o, anexo) {
     let arq; try { arq = await UI.pdfDoAnexo(anexo); } catch (e) { return { erro: String(e.message || e) }; }
@@ -101,17 +103,29 @@ window.iniciarEmissao = function (P) {
     $("hoje").querySelectorAll(".hj").forEach(b => b.onclick = () => itens[+b.dataset.i].go());
   }
   const observando = () => !planilhaAtiva() && !!(CTX.config && CTX.config.observar_planilha);
-  const pendAbertas = () => (CTX.pendencias || []).filter(x => x.situacao === "aberta");
+  // O.S. cancelada fica só para consulta: lançamento da planilha nela não conta nem pede decisão
+  const osDaPend = x => x.tipo === "mudanca" ? P.todos().find(o => String(o.id) === String(x.os_id)) : null;
+  const pendCancelada = x => (osDaPend(x) || {}).status === "Cancelada";
+  const pendTodas = () => (CTX.pendencias || []).filter(x => x.situacao === "aberta");
+  const pendAbertas = () => pendTodas().filter(x => !pendCancelada(x));
+  const pendCanceladas = () => pendTodas().filter(pendCancelada);
   const semComprovante = () => P.todos().filter(o => o.comprovante_pendente && o.status === "Atendida");
   const pendDaOS = o => pendAbertas().find(x => x.tipo === "mudanca" && String(x.os_id) === String(o.id));
   // mudança feita na planilha: aplicar no sistema (gerência) ou manter o sistema (equipe, com justificativa)
   function acaoPendencia(p, a, o) {
     if (!p) return;
     const voltar = async msg => { await P.recarregar(); aviso(msg, "ok"); if (o) P.openDet(o.id); };
+    const os_ = osDaPend(p) || o;
+    if (os_ && os_.status === "Cancelada") return UI.alerta({ titulo: "O.S. cancelada", itens: `A O.S. ${p.numero} está cancelada e fica só para consulta. A planilha não altera mais nada nela.` });
+    // O.S. atendida não pode ser cancelada, nem pela planilha
+    const bloqueado = d => d.campo === "Status" && os_ && os_.status === "Atendida" && (p.dados || {}).status === "Cancelada";
+    const difs = (p.diferencas || []).filter(d => a !== "aplicar" || !bloqueado(d));
+    if (a === "aplicar" && !difs.length) return UI.alerta({ titulo: "O.S. atendida não pode ser cancelada", itens: `A planilha marca a O.S. ${p.numero} como cancelada, mas ela já está atendida e não pode ser cancelada (nem pela planilha). Use "Manter o sistema" e registre o motivo.` });
     if (a === "aplicar") return dialogo({ titulo: `Aplicar no sistema a mudança da planilha (O.S. ${p.numero})`, botao: "Aplicar no sistema",
-      texto: "Os campos marcados passam a ter o valor da planilha e o valor anterior fica no histórico da O.S. O que ficar desmarcado continua aparecendo como diferença.",
+      texto: "Os campos marcados passam a ter o valor da planilha e o valor anterior fica no histórico da O.S. O que ficar desmarcado continua aparecendo como diferença."
+        + ((p.diferencas || []).some(bloqueado) ? " <b>O Status \"Cancelada\" não aparece aqui: O.S. atendida não pode ser cancelada.</b>" : ""),
       campos: [{ id: "campos", rot: "Campos a aplicar", tipo: "checks", obrig: true,
-                 opcoes: (p.diferencas || []).map(d => ({ valor: d.campo, marcado: true, rotulo: `<b>${esc(d.campo)}:</b> ${esc(d.sistema || "vazio")} → <span class="novo">${esc(d.planilha || "vazio")}</span>` })) },
+                 opcoes: difs.map(d => ({ valor: d.campo, marcado: true, rotulo: `<b>${esc(d.campo)}:</b> ${esc(d.sistema || "vazio")} → <span class="novo">${esc(d.planilha || "vazio")}</span>` })) },
                { id: "obs", rot: "Observação (opcional)", tipo: "textarea", linhas: 2 }],
       enviar: async v => { const r = await rpc("pendencia_aplicar", { p_id: p.id, p_campos: v.campos, p_obs: v.obs || null }); if (r.erro) return r.erro; await voltar(`Mudança aplicada na O.S. ${p.numero}.`); return null; } });
     return dialogo({ titulo: `Manter o sistema (O.S. ${p.numero})`, botao: "Manter o sistema",
@@ -494,13 +508,13 @@ window.iniciarEmissao = function (P) {
     const achar = el => P.find(el.closest("[data-id]").dataset.id);
     $("v-aprov").querySelectorAll("button[data-a]").forEach(b => b.onclick = () => {
       const o = achar(b), a = b.dataset.a;
-      if (a === "ver") return P.openDet(o.id);
+      if (a === "ver") return P.openDet(o.id, [...$("v-aprov").querySelectorAll(".sol[data-id]")].map(x => x.dataset.id));
       if (a === "reenviar") return P.setView("nova", { modo: "reenviar", o });
       if (a === "editar") return P.setView("nova", { modo: "editar", o });
       if (a === "manter") return acaoManter(o);
       decidir(o, a);
     });
-    $("v-aprov").querySelectorAll("tr.r[data-id]").forEach(tr => tr.onclick = () => P.openDet(tr.dataset.id));
+    $("v-aprov").querySelectorAll("tr.r[data-id]").forEach(tr => tr.onclick = () => P.openDet(tr.dataset.id, [...$("v-aprov").querySelectorAll("tr.r[data-id]")].map(x => x.dataset.id)));
     $("v-aprov").querySelectorAll(".selA").forEach(c => c.onchange = () => { const id = +c.closest("[data-id]").dataset.id; c.checked ? selAprov.add(id) : selAprov.delete(id); renderAprov(); });
     if ($("selTodas")) { $("selTodas").checked = ag.length > 0 && ag.every(o => selAprov.has(o.id)); $("selTodas").onchange = () => { ag.forEach(o => $("selTodas").checked ? selAprov.add(o.id) : selAprov.delete(o.id)); renderAprov(); }; }
     if ($("aprLote")) $("aprLote").onclick = () => {
@@ -550,6 +564,9 @@ window.iniciarEmissao = function (P) {
     if (o.comprovante_pendente && o.status === "Atendida") f.push(`<div class="faixa warn comp"><b>Falta a O.S. assinada.</b> O atendimento veio da planilha geral e foi registrado no sistema sem o PDF.
       ${GMAP || (EMPRESA && o.emp === EMPRESA) ? `<div class="solb"><button type="button" class="btn pri" data-acao="anexar">Anexar O.S. assinada</button></div>` : ""}</div>`);
     const pm = GMAP && pendDaOS(o);
+    const pc = GMAP && o.status === "Cancelada" && pendTodas().find(x => x.tipo === "mudanca" && String(x.os_id) === String(o.id));
+    if (pc) f.push(`<div class="faixa info plan"><b>A planilha tem dados diferentes desta O.S. cancelada</b> (detectado ${ha(pc.atualizado_em)}). Só para consulta: a O.S. cancelada não muda.
+      ${(pc.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</div>`);
     if (pm) f.push(`<div class="faixa warn plan"><b>A planilha está diferente do sistema</b> (detectado ${ha(pm.atualizado_em)}):
       ${(pm.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}
       <div class="solb"><button type="button" class="btn pri" data-acao="plan-aplicar">Aplicar no sistema</button><button type="button" class="btn" data-acao="plan-manter">Manter o sistema</button></div></div>`);
@@ -611,7 +628,8 @@ window.iniciarEmissao = function (P) {
         campos: [{ id: "data", rot: "Data do atendimento", tipo: "date", obrig: true, valor: corr ? o.atend : REF, maxData: REF },
           { id: "just", rot: "Justificativa", tipo: "textarea", valor: corr ? o.just : "", dica: "Obrigatória se o atendimento for depois do prazo." },
           { id: "pend", rot: "Pendências ou problemas encontrados", tipo: "textarea", valor: corr ? o.pend : "", dica: "Ex.: aparelho sem conserto, falta de ponto elétrico." },
-          { id: "pdf", rot: corr ? "Substituir a O.S. assinada (opcional)" : "O.S. assinada", tipo: "anexo", obrig: !corr, dica: DICA_ANEXO + (corr && o.pdf ? " Atual: " + o.pdf : "") }]
+          { id: "pdf", rot: corr ? "Substituir a O.S. assinada (opcional)" : exigePdf(o) ? "O.S. assinada" : "O.S. assinada (opcional)", tipo: "anexo", obrig: !corr && exigePdf(o),
+            dica: DICA_ANEXO + (corr && o.pdf ? " Atual: " + o.pdf : "") + (!corr && !exigePdf(o) ? ` Não obrigatória: esta O.S. foi emitida antes de ${fmt((CTX.config && CTX.config.pdf_obrigatorio_desde) || "2026-12-01")}, mas anexar ajuda a fiscalização.` : "") }]
           .concat(corr ? [{ id: "motivo", rot: "Motivo da correção", tipo: "textarea", obrig: true, min: 10 }] : []),
         enviar: async v => {
           if (v.data > REF) return "A data do atendimento não pode ser futura.";
@@ -729,7 +747,7 @@ window.iniciarEmissao = function (P) {
     const difs = o => { const e = entPorId(o.entidade_id); if (!e || !e.ativo) return []; return C.filter(([k, ke]) => String(e[ke] ?? "").trim() !== "" && String(o[k] ?? "") !== String(e[ke])).map(([k, ke]) => [ROT[k], o[k], e[ke]]); };
     const diverg = abertas.filter(o => !soPlanilha(o) && difs(o).length);
     const divergPlan = planilhaAtiva() ? abertas.filter(o => soPlanilha(o) && difs(o).length).length : 0;
-    const semVinc = L.filter(o => !o.entidade_id);
+    const semVinc = L.filter(o => !o.entidade_id && o.status !== "Cancelada");
     const outras = ativos.filter(e => e.tipo !== "escola");
     const MUD = CTX.mudancas || [];
     const ultima = MUD.length ? MUD.map(m => m.importado_em).sort().pop() : null;
@@ -906,7 +924,7 @@ window.iniciarEmissao = function (P) {
 
   // ---------- aba Planilha: lançamentos feitos na planilha depois da virada ----------
   function renderPlanilha() {
-    const L = CTX.pendencias || [], novas = L.filter(x => x.tipo === "nova" && x.situacao === "aberta"), muds = L.filter(x => x.tipo === "mudanca" && x.situacao === "aberta");
+    const L = CTX.pendencias || [], novas = L.filter(x => x.tipo === "nova" && x.situacao === "aberta"), muds = pendAbertas().filter(x => x.tipo === "mudanca"), mudsC = pendCanceladas();
     const tratadas = L.filter(x => x.situacao !== "aberta").sort((a, b) => String(b.decidido_em || b.atualizado_em).localeCompare(String(a.decidido_em || a.atualizado_em))).slice(0, 80);
     const SIT = { importada: "b-ok", descartada: "b-gray", aplicada: "b-ok", mantida: "b-info", resolvida: "b-ok" };
     const usados = new Set(P.todos().concat(P.solic()).map(x => x.numero));
@@ -926,6 +944,11 @@ window.iniciarEmissao = function (P) {
           <td class="ev">${(p.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</td>
           <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button><button class="btn pri" data-a="aplicar">Aplicar no sistema</button><button class="btn" data-a="manter">Manter o sistema</button></div></td></tr>`).join("")}</tbody></table></div>`
           : '<div class="empty">Nenhuma diferença entre a planilha e o sistema.</div>'}</div>
+      ${mudsC.length ? `<div class="card"><h3>Lançamentos da planilha em O.S. canceladas (${mudsC.length})</h3><div class="d">Só para consulta, fora das contagens. A O.S. cancelada não muda; se a empresa informou atendimento numa O.S. cancelada, ela não pode ser paga por ela.</div>
+        <div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que a planilha diz</th><th></th></tr></thead><tbody>${mudsC.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">
+          <td><b>${esc(p.numero)}</b> <span class="badge b-gray">Cancelada</span><div class="mun">${ha(p.atualizado_em)}</div></td><td>${esc(EMPN[p.empresa] || p.empresa)}</td>
+          <td class="ev">${(p.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</td>
+          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button></div></td></tr>`).join("")}</tbody></table></div></div>` : ""}
       ${(() => { const sc = semComprovante(); return `<div class="card"><h3>Atendidas pela planilha sem a O.S. assinada (${sc.length})</h3><div class="d">Ao aplicar "Atendida" vinda da planilha, a O.S. fica aqui até a empresa (ou a gerência) anexar o PDF. A empresa recebe um e-mail pedindo o arquivo.</div>
         ${sc.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Atendida em</th><th></th></tr></thead><tbody>${sc.map(o => `<tr data-os="${o.id}">
           <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td><td>${fmt(o.atend)}</td>

@@ -95,6 +95,7 @@ function buildFilters(){
   const isEmp=perfil.startsWith("emp:");
   $("filters").innerHTML = FD.filter(f=>!(f.hideEmp&&isEmp)).map(f=>`<div><label>${f.n}</label><select data-k="${f.k}"><option value="">Todos</option>${f.opts().map(([v,t])=>`<option value="${esc(v)}" ${FV[f.k]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`).join("")
    + `<div><label>Criadas de</label><input type="date" data-k="de" value="${FV.de||""}"></div><div><label>até</label><input type="date" data-k="ate" value="${FV.ate||""}"></div>`
+   + `<div><label>Atendidas de</label><input type="date" data-k="atDe" value="${FV.atDe||""}"></div><div><label>até</label><input type="date" data-k="atAte" value="${FV.atAte||""}"></div>`
    + `<div class="fbar">${FV.escola?`<span class="chip">Escola: ${esc(FV.escolaNome||FV.escola)} <button id="xEsc" title="Remover filtro de escola">×</button></span>`:""}${FV.semComp?`<span class="chip">Sem a O.S. assinada <button id="xComp" title="Remover este filtro">×</button></span>`:""}<button class="btn" id="clr">Limpar filtros</button></div>`;
   $("filters").querySelectorAll("select,input").forEach(el=>el.onchange=()=>{FV[el.dataset.k]=el.value;page=0;contarFiltros();render()});
   contarFiltros();
@@ -109,6 +110,8 @@ function filtered(){
     if(FV.escola && (o.inep||o.escola)!==FV.escola) return false;
     if(FV.de && (!o.criada || o.criada<FV.de)) return false;
     if(FV.ate && (!o.criada || o.criada>FV.ate)) return false;
+    if(FV.atDe && (!o.atend || o.atend<FV.atDe)) return false;
+    if(FV.atAte && (!o.atend || o.atend>FV.atAte)) return false;
     if(FV.semComp && !(o.comprovante_pendente && o.status==="Atendida")) return false;
     return true;
   });
@@ -117,7 +120,8 @@ function filterText(){
   const p=[]; FD.forEach(f=>{if(FV[f.k]){const o=f.opts().find(x=>x[0]===FV[f.k]);p.push(f.n+": "+(o?o[1]:FV[f.k]))}});
   if(FV.escola)p.push("Escola: "+(FV.escolaNome||FV.escola));
   if(FV.semComp)p.push("Sem a O.S. assinada");
-  if(FV.de)p.push("De "+fmt(FV.de)); if(FV.ate)p.push("Até "+fmt(FV.ate));
+  if(FV.de)p.push("Criadas de "+fmt(FV.de)); if(FV.ate)p.push("Criadas até "+fmt(FV.ate));
+  if(FV.atDe)p.push("Atendidas de "+fmt(FV.atDe)); if(FV.atAte)p.push("Atendidas até "+fmt(FV.atAte));
   const pr=(PERFIS.find(x=>x.id===perfil)||{n:CTX.perfilNome}).n;
   return "Perfil: "+pr+(p.length?" · "+p.join(" · "):" · Sem filtros");
 }
@@ -183,7 +187,7 @@ function renderGeral(L){
     const late=venc.sort((a,b)=>b.atraso-a.atraso).slice(0,6);
     $("late").innerHTML = `<table><thead><tr><th>Nº O.S.</th><th>Escola</th>${isEmp?"":"<th>Empresa</th>"}<th>Prioridade</th><th class="n">Dias de atraso</th></tr></thead><tbody>${
     late.map(o=>`<tr class="r" data-os="${o.id}"><td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||""))}</div></td>${isEmp?"":`<td>${EMPN[o.emp]}</td>`}<td><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="n"><b style="color:var(--bad)">${nf(o.atraso)}</b></td></tr>`).join("")}</tbody></table>`;
-    $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
+    $("late").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os,[...$("late").querySelectorAll("tr.r")].map(x=>x.dataset.os)));
   } else {
     const chave = o => lateBy==="escola" ? (o.inep||o.escola) : lateBy==="gre" ? (o.gre||"Não informada") : (o.mun||"Não informado");
     const G={}; venc.forEach(o=>{ const k=chave(o); (G[k]=G[k]||{k,itens:[],o}).itens.push(o); });
@@ -221,10 +225,10 @@ const CHECKS = [
    f:o=>o.sp==="Vencida"&&!o.just&&!o.standby_motivo?`Vencida há ${o.atraso} dias sem justificativa`:null},
   {id:"semat",c:"y",t:"Atendida sem data de atendimento",x:"Status Atendida, mas a data não foi preenchida",
    f:o=>o.status==="Atendida"&&!o.atend?"Data do atendimento em branco":null},
-  {id:"inc",c:"y",t:"Cadastro incompleto",x:"Falta data de criação, prazo, prioridade, município ou INEP",
-   f:o=>{const m=[];if(!o.criada)m.push("data de criação");if(!o.prazo)m.push("prazo");if(!o.prio)m.push("prioridade");if(!o.mun)m.push("município");if(!o.inep)m.push("INEP");return m.length?"Sem "+m.join(", "):null}},
-  {id:"rep",c:"y",t:"Número de O.S. repetido",x:"O mesmo número aparece em mais de um registro",
-   f:o=>osCount[o.os]>1?"Também usado em: "+ALL.filter(a=>a.os===o.os&&a!==o).map(a=>`${EMPN[a.emp]||a.emp} (${a.status})`).join(", "):null},
+  {id:"inc",c:"y",t:"Cadastro incompleto",x:"Falta data de criação, prazo, prioridade, município ou INEP (canceladas não entram)",
+   f:o=>{if(o.status==="Cancelada")return null;const m=[];if(!o.criada)m.push("data de criação");if(!o.prazo)m.push("prazo");if(!o.prio)m.push("prioridade");if(!o.mun)m.push("município");if(!o.inep)m.push("INEP");return m.length?"Sem "+m.join(", "):null}},
+  {id:"rep",c:"y",t:"Número de O.S. repetido",x:"O mesmo número em mais de um registro. A O.S. cancelada não entra na lista, mas a ativa com o mesmo número continua aparecendo",
+   f:o=>o.status!=="Cancelada"&&osCount[o.os]>1?"Também usado em: "+ALL.filter(a=>a.os===o.os&&a!==o).map(a=>`${EMPN[a.emp]||a.emp} (${a.status})`).join(", "):null},
   {id:"ant",c:"g",t:"Atendidas antes da emissão",x:"Chamados urgentes atendidos antes da O.S., que veio depois para regularizar",
    f:o=>o.sp==="Atendida antes da O.S."?`Atendida em ${fmt(o.atend)}, O.S. criada em ${fmt(o.criada)} (${days(dd(o.criada),dd(o.atend))} dias depois)`:null},
 ];
@@ -246,7 +250,7 @@ function renderAud(L){
   const c=CHECKS.find(x=>x.id===audSel), rows=res[audSel].slice().sort((a,b)=>(a[0].criada||"").localeCompare(b[0].criada||""));
   $("audlist").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap"><div><h3>${c.t} (${nf(rows.length)})</h3><div class="d">${c.x}. Clique na O.S. para ver o detalhe.</div></div><button class="btn" id="audx" ${rows.length?"":"disabled"}>Exportar lista (.xlsx)</button></div>
    <div class="tbl" style="max-height:60vh">${rows.length?`<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>Evidência</th></tr></thead><tbody>${rows.map(([o,ev])=>`<tr class="r" data-os="${o.id}"><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td><td>${fmt(o.criada)||"n/d"}</td><td class="ev">${esc(ev)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">Nenhuma ocorrência no filtro atual.</div>`}</div>`;
-  $("audlist").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os));
+  $("audlist").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os,[...$("audlist").querySelectorAll("tr.r")].map(x=>x.dataset.os)));
   EMI.audEntidades(L);
   const bx=$("audx"); if(bx) bx.onclick=()=>xlsx("Auditoria_"+audSel+".xlsx",[["Auditoria",[["Auditoria dos dados · "+c.t],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[],["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Escola","INEP","Município","Serviço","Splits","Evidência"]].concat(rows.map(([o,ev])=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??"",ev]))]]);
 }
@@ -328,7 +332,7 @@ function renderFila(){
     const ck=tr.querySelector(".ck");
     ck.onclick=e=>{e.stopPropagation(); ck.checked?sel.add(tr.dataset.os):sel.delete(tr.dataset.os); renderFila()};
     ck.parentElement.onclick=e=>e.stopPropagation();
-    tr.onclick=()=>openDet(tr.dataset.os);
+    tr.onclick=()=>openDet(tr.dataset.os,filaList().map(id));
   });
   $("all").checked = P.length>0 && P.every(o=>sel.has(id(o)));
   $("all").title=`Marcar as ${P.length} O.S. desta página`;
@@ -358,17 +362,32 @@ function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",o.status],["
   ["Solicitada por",o.solicitado_nome?o.solicitado_nome+" em "+dh(o.solicitado_em):""],["Aprovada por",o.aprovado_nome?o.aprovado_nome+" em "+dh(o.aprovado_em):""],
   ["Atendimento registrado por",o.atendido_nome||""]].filter(r=>r[1]!==""&&r[1]!=null)}
 const dh=s=>s?new Date(s).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
-function openDet(k){const o=find(k); if(!o) return;
+// Navegação no detalhe: a lista de onde a O.S. foi aberta (fila filtrada e ordenada, fiscalização, aprovações...)
+let NAV=null, DET_ATUAL=null;
+function openDet(k,lista){const o=find(k); if(!o) return; DET_ATUAL=String(o.id);
+  if(lista) NAV=lista.map(String); else if(!NAV||!NAV.includes(String(o.id))) NAV=null;
+  const pos=NAV?NAV.indexOf(String(o.id)):-1, nav=NAV&&NAV.length>1&&pos>=0;
   $("det").innerHTML=`<div class="dhead"><div><div class="mun">Ordem de serviço</div><h2>${esc(o.os)}</h2>
-   <span class="badge ${STB[o.status]}">${esc(o.status)}</span> ${PRE.includes(o.status)?"":`<span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span>`}</div><button class="btn" id="xd">Fechar</button></div>
+   <span class="badge ${STB[o.status]}">${esc(o.status)}</span> ${PRE.includes(o.status)?"":`<span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span>`}</div>
+   <div class="dnav">${nav?`<button class="ib" id="dAnt" ${pos>0?"":"disabled"} data-tip="O.S. anterior (seta ←)" aria-label="O.S. anterior">${UI.icone("anterior")}</button>
+     <span class="dpos" aria-live="polite">${nf(pos+1)} de ${nf(NAV.length)}</span>
+     <button class="ib" id="dProx" ${pos<NAV.length-1?"":"disabled"} data-tip="Próxima O.S. (seta →)" aria-label="Próxima O.S.">${UI.icone("proxima")}</button>`:""}
+     <button class="btn" id="xd">Fechar</button></div></div>
    ${EMI.faixaDetalhe(o)}
    <div class="dl">${osRows(o).slice(0).map(([a,b])=>`<div>${a}</div><div>${esc(b)}</div>`).join("")}</div>
    <div class="dacoes" id="dAcoes">${EMI.botoesDetalhe(o)}${PRE.includes(o.status)?"":UI.botaoIcone("imprimir","Imprimir esta O.S.").replace('data-acao="imprimir"','id="pd"')}</div>
    <h3 class="hist-t">Histórico</h3><div id="dHist" class="hist"><div class="mun">Carregando…</div></div>`;
   $("drawer").classList.add("on"); $("det").scrollTop=0; $("xd").onclick=closeDet; if($("pd")) $("pd").onclick=()=>printOS([o]);
+  if(nav){ $("dAnt").onclick=()=>irDet(-1); $("dProx").onclick=()=>irDet(1); }
   EMI.ligarDetalhe(o); EMI.historico(o);
 }
 function closeDet(){$("drawer").classList.remove("on")}
+function irDet(d){ if(!NAV||!$("drawer").classList.contains("on")) return; const atual=NAV.indexOf(DET_ATUAL);
+  const n=atual+d; if(atual<0||n<0||n>=NAV.length) return; openDet(NAV[n]); const b=$(d<0?"dAnt":"dProx"); if(b&&!b.disabled) b.focus(); }
+// setas do teclado trocam de O.S. quando o detalhe está aberto (fora de campos e de diálogos)
+document.addEventListener("keydown",e=>{ if(!["ArrowLeft","ArrowRight"].includes(e.key)||!$("drawer").classList.contains("on")) return;
+  if(e.target.closest("input,textarea,select,[contenteditable]")||document.querySelector("#dlg.on,#cfm.on,#alr.on")) return;
+  e.preventDefault(); irDet(e.key==="ArrowLeft"?-1:1); });
 $("drawer").onclick=e=>{if(e.target.id==="drawer")closeDet()};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDet()});
 
@@ -416,12 +435,12 @@ document.addEventListener("click",()=>$("mExp").classList.remove("on"));
 $("mExp").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>exp(b.dataset.x));
 
 // ---------- navegação ----------
-const VIEWS=["geral","fila","aprov","nova","planilha","aud","emp","modelo","usr"];
-const SEMFILTRO=["usr","aprov","nova","emp","modelo","planilha"];
-const GRUPO_CONF=["planilha","aud","emp","modelo"];
+const VIEWS=["geral","fila","aprov","nova","fisc","planilha","aud","emp","modelo","cfg","usr"];
+const SEMFILTRO=["usr","aprov","nova","emp","modelo","planilha","fisc","cfg"];
+const GRUPO_CONF=["fisc","planilha","aud","emp","modelo","cfg"];
 function setView(v,arg){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); $("tConf").classList.toggle("on",GRUPO_CONF.includes(v)); fecharConf(); VIEWS.forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=$("fTog").hidden=SEMFILTRO.includes(v); page=0; render(arg); window.scrollTo(0,0)}
 // trocar de aba pergunta antes se houver formulário preenchido (O.S. ou modelo)
-document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=async()=>{ const v=t.dataset.v; fecharConf(); if(v===view) return; if(!(await EMI.podeSair(view))) return; setView(v); });
+document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=async()=>{ const v=t.dataset.v; fecharConf(); if(v===view) return; if(!(await EMI.podeSair(view))) return; if(view==="cfg"&&!(await FIS.podeSairConfig())) return; setView(v); });
 // engrenagem: Planilha, Auditoria, Empresas e Modelo num menu; o número soma os avisos dos itens
 function fecharConf(){ const m=$("mConf"); if(!m.hidden){ m.hidden=true; $("tConf").setAttribute("aria-expanded","false"); } }
 function posicionarConf(){ const m=$("mConf"); if(m.hidden) return; const r=$("tConf").getBoundingClientRect(), w=m.offsetWidth;
@@ -440,13 +459,16 @@ function posicionarIcones(){ const fim=document.querySelector(".tabs-fim"); if(M
 (MQ_CEL.addEventListener?MQ_CEL.addEventListener("change",posicionarIcones):MQ_CEL.addListener(posicionarIcones)); posicionarIcones();
 new MutationObserver(atualizarConf).observe($("mConf"),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
 function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX);
-  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else renderFila(); }
+  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
 // abas por perfil: técnico vê tudo menos Usuários; consultivo (diretoria, fiscais) e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
 // fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
 const EMISSAO = !(CTX.config && CTX.config.planilha_ativa);
 const OBSERVANDO = EMISSAO && !!(CTX.config && CTX.config.observar_planilha);
-const ABAS = {aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
+const CONSULTIVO = perfil==="dir";
+// Fiscalização: aba principal para o Consultivo (fiscais, diretoria); para a equipe fica no menu da engrenagem
+if(!CONSULTIVO) $("mConf").insertBefore(document.querySelector('.tab[data-v="fisc"]'), document.querySelector('#mConf .tab[data-v="aud"]'));
+const ABAS = {fisc:EQUIPE||CONSULTIVO, cfg:GMAP, aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
 Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}"]`).hidden=!ok);
 document.querySelector('.tab[data-v="usr"]').innerHTML=UI.icone("usuarios"); atualizarConf();
 if(GMAP) contarPendentes(CTX);
@@ -455,6 +477,8 @@ async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.ro
 const EMI = window.iniciarEmissao({CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
   todos:()=>ALL, solic:()=>SOLIC, find, openDet, closeDet, setView, recarregar, podeSair:()=>EMI.podeSair(view), xlsx, stamp:()=>new Date().toLocaleString("pt-BR"),
   verFila:(filtro)=>{ FV=Object.assign({},filtro||{}); buildFilters(); $("fprazo").value=""; setView("fila"); }});
+const FIS = window.iniciarFiscalizacao({CTX, $, esc, fmt, tc, nf, EMPN, SERV, SERVN, PRIOS, todos:()=>ALL, find, openDet, recarregar, xlsx, doPrint, ph,
+  podeConferir: GMAP||CONSULTIVO, aviso:(m,t)=>UI.aviso(m,t)});
 EMI.contarAprov();
 buildFilters(); render();
 

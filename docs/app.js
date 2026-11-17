@@ -36,8 +36,8 @@
     escola: o.escola || o.entidade, mun: o.municipio, end: o.endereco, sei: o.id_sei, obs: o.observacoes, just: o.justificativa,
     motivo: o.motivo_cancelamento, pend: o.pendencias, pdf: o.pdf_nome, revisao: !!o.revisao
   });
-  async function carregarDados(equipe) {
-    const [linhas, ents, emps, muds, modelo, contatos, cfg, pend] = await Promise.all([
+  async function carregarDados(equipe, gestao) {
+    const [linhas, ents, emps, muds, modelo, contatos, cfg, pend, conf] = await Promise.all([
       carregarTudo("os", "*"),
       carregarTudo("entidades", "*"),
       sb.from("empresas").select("*").order("nome"),
@@ -45,17 +45,20 @@
       sb.from("os_modelo").select("*").limit(1),
       equipe ? sb.from("entidade_contatos").select("*").limit(5000) : Promise.resolve({ data: [] }),
       sb.from("sistema_config").select("*").limit(1),
-      equipe ? sb.from("planilha_pendencias").select("*").order("id", { ascending: false }).limit(1000) : Promise.resolve({ data: [] })
+      equipe ? sb.from("planilha_pendencias").select("*").order("id", { ascending: false }).limit(1000) : Promise.resolve({ data: [] }),
+      gestao ? carregarTudo("os_conferencias", "*").catch(() => []) : Promise.resolve([])
     ]);
+    // conferência atual de cada O.S. = a última registrada
+    const conferencias = {}; conf.forEach(c => { conferencias[c.os_id] = c; });
     return { rows: linhas.map(paraPainel), entidades: ents, empresasCad: emps.data || [], mudancas: muds.data || [],
-             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [] };
+             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias };
   }
   async function iniciar() {
     show("carregando");
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return show("login");
 
-    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, funcao, nome, email, situacao").eq("user_id", session.user.id);
+    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, funcao, empresas, todas_empresas, nome, email, situacao").eq("user_id", session.user.id);
     const p = perfis && perfis[0];
     if (ep || !p) {
       try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
@@ -74,14 +77,14 @@
     }
 
     try {
-      const equipe = p.perfil === "gmap" || p.perfil === "tecnico";
+      const equipe = p.perfil === "gmap" || p.perfil === "tecnico", gestao = equipe || p.perfil === "consultivo";
       const [dados, sinc] = await Promise.all([
-        carregarDados(equipe),
+        carregarDados(equipe, gestao),
         sb.from("sincronizacoes").select("executada_em").order("id", { ascending: false }).limit(1)
       ]);
       sb.from("acessos").insert({ agente: navigator.userAgent.slice(0, 200) }).then(() => {});
       const perfil = p.perfil === "gmap" ? "gmap" : p.perfil === "tecnico" ? "tec" : p.perfil === "consultivo" ? "dir" : "emp:" + p.empresa;
-      const perfilNome = p.perfil === "empresa" ? "Empresa: " + p.empresa : p.perfil === "consultivo" ? "Consultivo" + (p.funcao ? " · " + p.funcao : "") : NOMES[p.perfil];
+      const perfilNome = p.perfil === "empresa" ? "Empresa: " + p.empresa : p.perfil === "consultivo" ? "Consultivo" + (p.funcao ? " · " + p.funcao : "") + (p.todas_empresas ? "" : (p.empresas || []).length ? " · " + p.empresas.join(", ") : "") : NOMES[p.perfil];
       EU = { nome: p.nome || "", email: p.email, perfilNome };
       $("uNome").textContent = p.nome || p.email;
       $("uPerfil").textContent = perfilNome;
@@ -93,7 +96,7 @@
       const { data: emps } = await sb.rpc("empresas_disponiveis");
       iniciarPainel(Object.assign(dados, { perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
                       sb, uid: session.user.id, nome: p.nome || p.email, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]),
-                      recarregar: () => carregarDados(equipe) }));
+                      recarregar: () => carregarDados(equipe, gestao) }));
     } catch (e) {
       show("carregando");
       $("carregando").innerHTML = '<div class="lcard"><b>Não foi possível carregar os dados</b><div class="sub">' + String(e.message || e).replace(/</g, "&lt;") + '</div><button class="btn" onclick="location.reload()">Tentar de novo</button></div>';
@@ -122,13 +125,14 @@
     ev.preventDefault();
     $("cErr").textContent = ""; show("cad");
     const { data } = await sb.rpc("empresas_disponiveis");
-    $("cEmpresa").innerHTML = '<option value="">Selecione</option>' + (data || [])
-      .map(e => typeof e === "string" ? e : Object.values(e)[0])
-      .map(e => `<option>${String(e).replace(/</g, "&lt;")}</option>`).join("");
+    const nomes = (data || []).map(e => typeof e === "string" ? e : Object.values(e)[0]).map(e => String(e).replace(/[<>"&]/g, ""));
+    $("cEmpresa").innerHTML = '<option value="">Selecione</option>' + nomes.map(e => `<option>${e}</option>`).join("");
+    $("cEmpsL").innerHTML = nomes.map(e => `<label class="chk1"><input type="checkbox" class="cEmp" value="${e}"><span>${e}</span></label>`).join("");
   };
   $("aLogin").onclick = ev => { ev.preventDefault(); show("login"); };
   $("cPerfil").onchange = () => { const v = $("cPerfil").value; $("lEmp").hidden = v !== "empresa"; $("cEmpresa").required = v === "empresa";
-    $("lFun").hidden = v !== "consultivo"; $("lFunO").hidden = v !== "consultivo" || $("cFuncao").value !== "outra"; };
+    $("lFun").hidden = v !== "consultivo"; $("lFunO").hidden = v !== "consultivo" || $("cFuncao").value !== "outra"; $("lEmps").hidden = v !== "consultivo"; };
+  $("cTodas").onchange = () => document.querySelectorAll(".cEmp").forEach(c => { c.disabled = $("cTodas").checked; if (c.disabled) c.checked = false; });
   $("cFuncao").onchange = () => { $("lFunO").hidden = $("cFuncao").value !== "outra"; if (!$("lFunO").hidden) $("cFuncaoO").focus(); };
   UI.aoEnviar("fCad", async ev => {
     ev.preventDefault();
@@ -141,10 +145,12 @@
     if (perfil === "empresa" && !empresa) return UI.alerta({ titulo: "Selecione a empresa", itens: "Para o perfil Empresa, escolha a empresa na lista.", campos: [$("cEmpresa")] });
     const funcao = perfil !== "consultivo" ? null : $("cFuncao").value === "outra" ? $("cFuncaoO").value.trim() : $("cFuncao").value;
     if (perfil === "consultivo" && (!funcao || funcao.length < 2)) return UI.alerta({ titulo: "Informe a função", itens: "Para o perfil Consultivo, diga a função (Diretoria, Fiscal de contrato ou outra).", campos: [$("cFuncao").value === "outra" ? $("cFuncaoO") : $("cFuncao")] });
+    const todas_empresas = perfil === "consultivo" && $("cTodas").checked, empresas = perfil !== "consultivo" || todas_empresas ? [] : [...document.querySelectorAll(".cEmp:checked")].map(c => c.value);
+    if (perfil === "consultivo" && !todas_empresas && !empresas.length) return UI.alerta({ titulo: "Escolha as empresas", itens: "Marque as empresas que vai fiscalizar, ou \"Todas as empresas\".", campos: [$("cTodas")] });
     $("cBtn").disabled = true;
     const { data, error } = await sb.auth.signUp({
       email: $("cEmail").value.trim(), password: $("cS1").value,
-      options: { data: { nome: $("cNome").value.trim(), perfil, empresa, funcao } }
+      options: { data: { nome: $("cNome").value.trim(), perfil, empresa, funcao, ...(perfil === "consultivo" ? { empresas, todas_empresas } : {}) } }
     });
     $("cBtn").disabled = false;
     if (error) {

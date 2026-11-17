@@ -99,6 +99,9 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
    - **Editar:** nome, perfil, empresa e função de qualquer usuário. O próprio perfil só pode ser trocado por outra pessoa da gerência.
    - **Excluir:** antes de confirmar, o sistema mostra o que será afetado. Apaga o login e o cadastro (não dá para desfazer); o nome continua no histórico das O.S.; solicitações em andamento passam para quem excluiu. Para afastamentos temporários, prefira **Bloquear**.
    - **Minha conta** (todos os perfis): cada pessoa corrige o próprio nome e troca a senha.
+   - **Fiscalização:** a gerência e o perfil Consultivo registram a conferência das O.S. atendidas (conferida, com ressalva ou glosada). Glosa e ressalva exigem ao menos um motivo da lista (ou "Outro" descrito). Técnicos só consultam. A empresa não vê as conferências. Cada fiscal só vê as empresas liberadas para ele (ou todas).
+   - **Configurações** (engrenagem, só gerência): listas de motivos de glosa e de ressalva e a data a partir da qual a O.S. assinada em PDF passa a ser obrigatória (padrão 01/12/2026).
+   - **O.S. cancelada** fica só para consulta: não entra nos indicadores de ajuste, e a planilha não altera O.S. cancelada nem cancela O.S. atendida.
    - **Perfis:** gerência GMAP (tudo), técnico GMAP (solicita e acompanha O.S.), **Consultivo** (Diretoria, fiscais de contrato: só consulta e exporta, todas as empresas) e Empresa (só as próprias O.S.).
 5. **Primeiro usuário GMAP:** como ainda não há quem aprove, ele se cadastra pelo site e é aprovado uma única vez pelo SQL Editor (comando no fim de `supabase/scripts/usuarios.sql`).
 

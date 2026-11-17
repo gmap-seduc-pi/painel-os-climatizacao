@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.2.0">
+<link rel="stylesheet" href="style.css?v=2.3.0">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -43,6 +43,9 @@
     <label id="lEmp" hidden>Empresa<select id="cEmpresa"><option value="">Selecione</option></select></label>
     <label id="lFun" hidden>Função<select id="cFuncao"><option value="">Selecione</option><option>Diretoria</option><option>Fiscal de contrato</option><option value="outra">Outra</option></select></label>
     <label id="lFunO" hidden>Qual função?<input type="text" id="cFuncaoO" maxlength="60"></label>
+    <fieldset id="lEmps" class="cemps" hidden><legend>Empresas que vai fiscalizar</legend>
+      <label class="chk1"><input type="checkbox" id="cTodas"><span>Todas as empresas (Diretoria)</span></label>
+      <div id="cEmpsL"></div><small>A gerência confere antes de liberar o acesso.</small></fieldset>
     <label>Senha (mínimo de 10 caracteres)<input type="password" id="cS1" minlength="10" required autocomplete="new-password"></label>
     <label>Repita a senha<input type="password" id="cS2" minlength="10" required autocomplete="new-password"></label>
     <div class="lerr" id="cErr"></div>
@@ -83,6 +86,7 @@
       <button class="tab" data-v="fila"><span class="so-pc">Fila de O.S.</span><span class="so-cel">Fila</span></button>
       <button class="tab" data-v="aprov" hidden>Aprovações</button>
       <button class="tab" data-v="nova" hidden>Nova O.S.</button>
+      <button class="tab" data-v="fisc" hidden>Fiscalização</button>
       <span class="tabs-fim">
         <button type="button" class="tab tabi" id="tConf" aria-haspopup="menu" aria-expanded="false" aria-controls="mConf" aria-label="Administração" data-tip="Administração" hidden></button>
         <button type="button" class="tab tabi" data-v="usr" aria-label="Usuários" data-tip="Usuários" hidden></button>
@@ -93,6 +97,7 @@
       <button type="button" class="tab" data-v="aud" role="menuitem" hidden>Auditoria dos dados</button>
       <button type="button" class="tab" data-v="emp" role="menuitem" hidden>Empresas</button>
       <button type="button" class="tab" data-v="modelo" role="menuitem" hidden>Modelo da O.S.</button>
+      <button type="button" class="tab" data-v="cfg" role="menuitem" hidden>Configurações</button>
     </div>
     <button type="button" class="btn ftog" id="fTog" aria-expanded="false" aria-controls="filters">Filtros<span id="fTogN"></span></button>
     <div class="filters" id="filters"></div>
@@ -123,6 +128,8 @@
     <section id="v-aprov" hidden></section>
     <section id="v-nova" hidden></section>
     <section id="v-planilha" hidden></section>
+    <section id="v-fisc" hidden></section>
+    <section id="v-cfg" hidden></section>
     <section id="v-emp" hidden></section>
     <section id="v-modelo" hidden></section>
 
@@ -169,11 +176,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=2.2.0"></script>
-<script src="ui.js?v=2.2.0"></script>
-<script src="painel.js?v=2.2.0"></script>
-<script src="usuarios.js?v=2.2.0"></script>
-<script src="emissao.js?v=2.2.0"></script>
-<script src="app.js?v=2.2.0"></script>
+<script src="config.js?v=2.3.0"></script>
+<script src="ui.js?v=2.3.0"></script>
+<script src="painel.js?v=2.3.0"></script>
+<script src="usuarios.js?v=2.3.0"></script>
+<script src="emissao.js?v=2.3.0"></script>
+<script src="fiscalizacao.js?v=2.3.0"></script>
+<script src="app.js?v=2.3.0"></script>
 </body>
 </html>

@@ -4,6 +4,35 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.3.0] - 2026-11-17
+
+Requer a migração `supabase/migrations/007_fiscalizacao.sql` (depois da 006).
+
+### Adicionado
+- Aba **Fiscalização** (aba principal para o perfil Consultivo; no menu da engrenagem para a equipe da GMAP), para conferir os atendimentos antes do pagamento:
+  - escolhe empresa, período (mês, já aberto no mês anterior, ou datas livres) e GRE; o período considera a data do atendimento informada pela empresa;
+  - resumo: O.S. atendidas, splits, % no prazo, fora do prazo com atraso médio, sem O.S. assinada e andamento da conferência; quebra por tipo de serviço, prioridade e GRE;
+  - pontos de atenção clicáveis: fora do prazo, sem O.S. assinada, registro tardio (mais de 7 dias depois da data informada), data anterior à emissão, mesma escola e serviço no período, pendências relatadas e atendimento alterado depois da conferência;
+  - lista com a O.S. assinada (Ver PDF), quando foi registrada no sistema e a situação da conferência;
+  - botão **Limpar filtros**;
+  - **conferência** pela gerência e pelo Consultivo: conferida, com ressalva ou glosada, uma a uma ou em lote. Glosa e ressalva pedem um ou mais **motivos rápidos** (listas separadas, incluindo "Outro" com descrição livre) e têm um campo de **observação** à parte; pode ser desfeita. A O.S. não muda, cada conferência fica registrada (quem, função, quando) e aparece no histórico interno da O.S.; a empresa não vê;
+  - **Exportar Excel** (resumo, lista completa e pontos de atenção), **Imprimir relatório** (com espaço de assinatura do fiscal) e **Baixar O.S. assinadas** num único arquivo .zip para anexar ao processo de pagamento.
+- **Configurações** (engrenagem, só gerência): motivos de glosa e de ressalva (incluir, reordenar, remover) e a data a partir da qual a O.S. assinada em PDF é obrigatória, com histórico de alterações.
+- **O.S. assinada obrigatória só para O.S. emitidas a partir de 01/12/2026** (data editável em Configurações). Antes disso o anexo é opcional e não gera pendência; a Fiscalização mostra "não exigida".
+- Perfil **Consultivo por empresa**: no cadastro o fiscal escolhe as empresas que vai acompanhar (ou "Todas as empresas", para a Diretoria); a gerência confirma e pode alterar. O fiscal só vê e confere O.S. dessas empresas (regra aplicada no banco).
+- Painel de detalhe da O.S.: setas **anterior / próxima** (e teclas ← →) para percorrer a lista de onde a O.S. foi aberta, com a posição "x de N".
+- Fila de O.S.: filtro **Atendidas de / até**.
+- O sistema passa a guardar quando o atendimento foi registrado (para comparar com a data informada).
+
+### Alterado
+- **O.S. cancelada fica só para consulta** e sai dos indicadores que pedem ajuste ou verificação:
+  - Auditoria dos dados: "Cadastro incompleto" e "Número de O.S. repetido" não listam canceladas (a O.S. ativa com o mesmo número de uma cancelada continua aparecendo); base de entidades: "O.S. sem vínculo com a base" também;
+  - Planilha: lançamento da planilha numa O.S. cancelada não entra nos contadores e vai para o bloco "Lançamentos da planilha em O.S. canceladas", só para consulta. O banco recusa aplicar ou decidir sobre ele;
+  - as estatísticas de canceladas (por motivo e na síntese) continuam como estavam.
+- A planilha não cancela mais O.S. atendida (mesma regra do botão Cancelar). O aviso pode ser resolvido com "Manter o sistema".
+- Usuários do perfil Consultivo que já existiam passam a ver **todas as empresas**; a gerência deve editar os fiscais para limitar as empresas de cada um.
+- Celular: nos cartões, o nome do campo não se sobrepõe mais ao campo seguinte quando quebra em duas linhas.
+
 ## [2.2.0] - 2026-11-17
 
 Requer a migração `supabase/migrations/006_perfis_e_usuarios.sql` (depois da 005).
