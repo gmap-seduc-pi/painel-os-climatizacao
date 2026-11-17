@@ -1,7 +1,9 @@
 /* Painel de O.S. de Climatização · GMAP | SEDUC-PI
    Aba "Usuários": aprovação de pedidos de acesso e gestão de usuários (somente GMAP).
    As permissões são conferidas no banco; esta tela só chama as funções autorizadas. */
-const PERFIL_NOME = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", diretoria: "Diretoria", empresa: "Empresa" };
+const PERFIL_NOME = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", consultivo: "Consultivo", empresa: "Empresa" };
+const uPerfilTxt = u => (PERFIL_NOME[u.perfil] || uEscF(u.perfil)) + (u.perfil === "consultivo" && u.funcao ? " · " + uEscF(u.funcao) : "");
+function uEscF(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 const SIT = { pendente: ["Pendente", "b-warn"], aprovado: ["Ativo", "b-ok"], recusado: ["Recusado", "b-gray"], bloqueado: ["Bloqueado", "b-bad"] };
 const uEsc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const uData = s => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "nunca";
@@ -28,18 +30,26 @@ async function renderUsuarios(CTX) {
 
   $("uPendT").textContent = `Pedidos de acesso (${pend.length})`;
   $("uPend").innerHTML = pend.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Empresa</th><th>Pedido em</th><th></th></tr></thead><tbody>${
-    pend.map(u => `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${selPerfil(u)}</td><td>${selEmp(u)}</td><td>${uData(u.criado_em)}</td>
+    pend.map(u => `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${selPerfil(u)}${u.funcao ? `<div class="mun">Função informada: ${uEsc(u.funcao)}</div>` : ""}</td><td>${selEmp(u)}</td><td>${uData(u.criado_em)}</td>
       <td><div class="acoes"><button class="btn ok" data-a="aprovar">Aprovar</button><button class="btn no" data-a="recusar">Recusar</button></div></td></tr>`).join("")}</tbody></table></div>`
     : '<div class="empty">Nenhum pedido aguardando aprovação.</div>';
 
   $("uTodos").innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th>Decidido em</th><th></th></tr></thead><tbody>${
     outros.map(u => {
       const eu = u.user_id === CTX.uid, s = SIT[u.situacao] || [u.situacao, "b-gray"];
-      const acao = eu ? '<span class="mun">você</span>' : u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>';
-      return `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${PERFIL_NOME[u.perfil] || uEsc(u.perfil)}${u.empresa ? "<div class='mun'>" + uEsc(u.empresa) + "</div>" : ""}</td>
+      const acao = `<div class="acoes"><button class="btn" data-x="editar">Editar</button>` + (eu ? '<span class="mun">você</span>' : (u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>')
+        + '<button class="btn no" data-x="excluir">Excluir</button>') + "</div>";
+      return `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${uPerfilTxt(u)}${u.empresa ? "<div class='mun'>" + uEsc(u.empresa) + "</div>" : ""}</td>
         <td><span class="badge ${s[1]}">${s[0]}</span></td><td>${uData(u.ultimo_acesso)}</td><td>${u.decidido_em ? uData(u.decidido_em) : ""}</td><td>${acao}</td></tr>`;
     }).join("")}</tbody></table>`;
 
+  const porId = id => data.find(u => u.user_id === id);
+  const recarregar = async msg => { await renderUsuarios(CTX); contarPendentes(CTX); if (msg) $("uMsg").textContent = msg; };
+  document.querySelectorAll("#uTodos button[data-x]").forEach(b => b.onclick = async () => {
+    const u = porId(b.closest("tr").dataset.id); if (!u) return;
+    if (b.dataset.x === "editar") return editarUsuario(CTX, u, empresas, recarregar);
+    return excluirUsuario(CTX, u, recarregar);
+  });
   document.querySelectorAll('#uPend select[data-f="perfil"]').forEach(sel => sel.onchange = () => {
     sel.closest("tr").querySelector('select[data-f="empresa"]').hidden = sel.value !== "empresa";
   });
@@ -61,4 +71,56 @@ async function renderUsuarios(CTX) {
     await renderUsuarios(CTX);
     contarPendentes(CTX);
   });
+}
+
+// gerência: editar nome, perfil, empresa e função (o próprio perfil não pode ser trocado)
+async function editarUsuario(CTX, u, empresas, recarregar) {
+  const eu = u.user_id === CTX.uid;
+  const { data: imp } = await CTX.sb.rpc("usuario_impacto", { p_usuario: u.user_id });
+  const vis = v => { const s = id => { const el = document.getElementById("dc_" + id); if (el) el.closest(".fl").hidden = !v; }; return s; };
+  const ajustar = perfil => { vis(perfil === "empresa")("empresa"); vis(perfil === "consultivo")("funcao"); };
+  UI.dialogo({
+    titulo: `Editar usuário: ${u.nome || u.email}`, botao: "Salvar",
+    texto: `${uEsc(u.email)}${eu ? "<br>Você pode corrigir o seu nome. O seu perfil só pode ser alterado por outra pessoa da gerência." : ""}`,
+    campos: [
+      { id: "nome", rot: "Nome completo", obrig: true, valor: u.nome || "", max: 120 },
+      ...(eu ? [] : [{ id: "perfil", rot: "Perfil", tipo: "select", obrig: true, valor: u.perfil, opcoes: Object.entries(PERFIL_NOME).map(([v, t]) => ({ v, t })), aoMudar: v => ajustar(v.perfil) }]),
+      { id: "empresa", rot: "Empresa", tipo: "select", obrig: true, valor: u.empresa || "", opcoes: empresas, oculto: u.perfil !== "empresa" },
+      { id: "funcao", rot: "Função", obrig: true, valor: u.funcao || "", max: 60, oculto: u.perfil !== "consultivo", dica: "Ex.: Diretoria, Fiscal de contrato, Fiscal do contrato Classe A." }
+    ],
+    enviar: async v => {
+      const perfil = eu ? u.perfil : v.perfil;
+      const sai = imp && (imp.aguardando + imp.devolvidas) > 0 && (u.perfil === "gmap" || u.perfil === "tecnico") && !(perfil === "gmap" || perfil === "tecnico");
+      if (perfil !== u.perfil && !(await UI.confirmar({ titulo: `Mudar ${u.nome || u.email} de ${PERFIL_NOME[u.perfil]} para ${PERFIL_NOME[perfil]}?`, botao: "Mudar o perfil",
+        texto: "As permissões mudam no próximo acesso dessa pessoa." + (sai ? `<br><b>Atenção:</b> essa pessoa tem ${imp.aguardando + imp.devolvidas} ${imp.aguardando + imp.devolvidas === 1 ? "solicitação" : "solicitações"} em andamento e, com o novo perfil, não poderá mais corrigir.` : "") }))) return false;
+      const { error } = await CTX.sb.rpc("usuario_editar", { p_usuario: u.user_id, p_nome: v.nome, p_perfil: perfil, p_empresa: perfil === "empresa" ? v.empresa : null, p_funcao: perfil === "consultivo" ? v.funcao : null });
+      if (error) return error.message;
+      if (eu && v.nome !== CTX.nome) { const n = document.getElementById("uNome"); if (n) n.textContent = v.nome; }
+      await recarregar("Usuário atualizado.");
+      return null;
+    }
+  });
+}
+
+// gerência: excluir usuário, mostrando antes o que será afetado
+async function excluirUsuario(CTX, u, recarregar) {
+  const { data: imp, error } = await CTX.sb.rpc("usuario_impacto", { p_usuario: u.user_id });
+  if (error) return UI.alerta({ titulo: "Não foi possível verificar o usuário", itens: error.message });
+  const nome = u.nome || u.email, and = imp.aguardando + imp.devolvidas, pl = (n, s, p2) => n + " " + (n === 1 ? s : p2);
+  const itens = [
+    `Perde o acesso na hora. O login e o cadastro são apagados e <b>não dá para desfazer</b>.`,
+    `Último acesso: ${uData(imp.ultimo_acesso)}.`,
+    imp.acoes ? `O nome continua no histórico das O.S. (${pl(imp.acoes, "ação registrada", "ações registradas")}).` : "Não há ações desse usuário no histórico das O.S.",
+    imp.solicitadas ? `${pl(imp.solicitadas, "O.S. solicitada continua", "O.S. solicitadas continuam")} com esse nome como solicitante.` : "",
+    imp.atendimentos ? `${pl(imp.atendimentos, "atendimento registrado continua", "atendimentos registrados continuam")} valendo.` : "",
+    and ? `<b>${pl(and, "solicitação em andamento passa", "solicitações em andamento passam")} para você</b>${imp.devolvidas ? ` (${pl(imp.devolvidas, "devolvida volta", "devolvidas voltam")} para a aprovação)` : ""}.` : "",
+    u.situacao === "aprovado" ? "Se o afastamento for temporário, prefira <b>Bloquear</b>: dá para reativar depois." : ""
+  ].filter(Boolean);
+  const ok = await UI.confirmar({ titulo: `Excluir ${nome}?`, perigo: true, botao: "Excluir definitivamente",
+    texto: `${uEsc(u.email)} · ${uPerfilTxt(u)}<ul class="impacto">${itens.map(i => `<li>${i}</li>`).join("")}</ul>` });
+  if (!ok) return;
+  const r = await CTX.sb.rpc("usuario_excluir", { p_usuario: u.user_id });
+  if (r.error) return UI.alerta({ titulo: "Não foi possível excluir", itens: r.error.message });
+  const t = r.data && r.data.transferidas;
+  await recarregar(`${nome} foi excluído(a).` + (t ? ` ${t} ${t === 1 ? "solicitação passou" : "solicitações passaram"} para você.` : ""));
 }

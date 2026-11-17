@@ -7,7 +7,7 @@
 -- 1) Crie o usuário em Authentication > Users > Add user > Create new user
 --    (e-mail + senha temporária, marque "Auto Confirm User").
 -- 2) Rode o comando abaixo trocando e-mail, nome, perfil e empresa.
---    perfil: 'gmap' | 'diretoria' | 'empresa'
+--    perfil: 'gmap' | 'tecnico' | 'consultivo' | 'empresa'  (consultivo exige a coluna funcao, ex.: 'Fiscal de contrato')
 --    empresa: só para perfil 'empresa', escrito EXATAMENTE como na coluna
 --             EMPRESA da planilha: 'CLASSE A', 'CONCRETIZAR', 'R.E. SOLUÇÕES', 'NATAL COMPUTER'
 -- =====================================================================

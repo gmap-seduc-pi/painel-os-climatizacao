@@ -14,7 +14,7 @@ Planilha geral, aba "Consolidado"
 Supabase (PostgreSQL)
   · tabela os            → espelho da planilha
   · tabela perfis        → quem acessa e com qual perfil
-  · regras de acesso     → GMAP e diretoria veem tudo; empresa vê só as próprias O.S.
+  · regras de acesso     → GMAP, técnicos e Consultivo veem tudo; empresa vê só as próprias O.S.
   · histórico de status, registro de sincronizações e de acessos
       │  login com e-mail e senha (chave pública)
       ▼
@@ -93,9 +93,13 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
 ## 5. Usuários: cadastro com aprovação
 
 1. No Supabase, em **Authentication**, **ative** o cadastro de novos usuários e **desative** a confirmação de e-mail (sem servidor de e-mail próprio, a confirmação não chega). A segurança vem da aprovação da GMAP.
-2. A pessoa abre o painel, clica em **Solicitar acesso** e informa nome, e-mail, senha e o perfil pretendido (e a empresa, se for o caso). A conta nasce **pendente** e não vê nenhum dado.
+2. A pessoa abre o painel, clica em **Solicitar acesso** e informa nome, e-mail, senha e o perfil pretendido (a empresa, no perfil Empresa; a função, no perfil Consultivo). A conta nasce **pendente** e não vê nenhum dado.
 3. Um usuário GMAP abre **Usuários** (ícone de pessoas, no canto direito das abas), confere se a pessoa e o e-mail são de quem dizem ser, ajusta perfil ou empresa se necessário e clica em **Aprovar** ou **Recusar**. O ícone mostra um contador de pedidos pendentes.
 4. Na mesma aba, **Bloquear** retira o acesso na hora e **Reativar** devolve. Ninguém altera o próprio acesso. Todas as decisões ficam em `perfis_log`.
+   - **Editar:** nome, perfil, empresa e função de qualquer usuário. O próprio perfil só pode ser trocado por outra pessoa da gerência.
+   - **Excluir:** antes de confirmar, o sistema mostra o que será afetado. Apaga o login e o cadastro (não dá para desfazer); o nome continua no histórico das O.S.; solicitações em andamento passam para quem excluiu. Para afastamentos temporários, prefira **Bloquear**.
+   - **Minha conta** (todos os perfis): cada pessoa corrige o próprio nome e troca a senha.
+   - **Perfis:** gerência GMAP (tudo), técnico GMAP (solicita e acompanha O.S.), **Consultivo** (Diretoria, fiscais de contrato: só consulta e exporta, todas as empresas) e Empresa (só as próprias O.S.).
 5. **Primeiro usuário GMAP:** como ainda não há quem aprove, ele se cadastra pelo site e é aprovado uma única vez pelo SQL Editor (comando no fim de `supabase/scripts/usuarios.sql`).
 
 **Esqueceu a senha:** em **Authentication > Users**, abra o usuário e defina uma nova senha temporária. A recuperação automática por e-mail exige um servidor de e-mail próprio no Supabase.
@@ -139,7 +143,7 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 ## 8. Teste de aceite (antes de liberar)
 
 1. Login com usuário **GMAP**: três abas, todas as empresas, números iguais aos da planilha.
-2. Login com usuário **diretoria**: duas abas, todas as empresas.
+2. Login com usuário **Consultivo**: duas abas, todas as empresas, exportação liberada e nenhuma ação nas O.S.
 3. Login com usuário de **empresa**: duas abas, só as O.S. dela; sem filtro de empresa; exportações só com as O.S. dela.
 4. Alterar um status na planilha de uma empresa, rodar **Atualizar > Atualizar Planilha** e conferir no painel.
 5. Exportar relatório sintético e analítico (Excel e PDF) e imprimir uma O.S. e um lote.
