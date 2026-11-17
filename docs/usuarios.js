@@ -2,7 +2,9 @@
    Aba "Usuários": aprovação de pedidos de acesso e gestão de usuários (somente GMAP).
    As permissões são conferidas no banco; esta tela só chama as funções autorizadas. */
 const PERFIL_NOME = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", consultivo: "Consultivo", empresa: "Empresa" };
-const uPerfilTxt = u => (PERFIL_NOME[u.perfil] || uEscF(u.perfil)) + (u.perfil === "consultivo" && u.funcao ? " · " + uEscF(u.funcao) : "");
+const uEmpsTxt = u => u.perfil !== "consultivo" ? "" : u.todas_empresas ? "todas as empresas" : (u.empresas || []).length ? (u.empresas || []).join(", ") : "nenhuma empresa definida";
+const uPerfilTxt = u => (PERFIL_NOME[u.perfil] || uEscF(u.perfil)) + (u.perfil === "consultivo" && u.funcao ? " · " + uEscF(u.funcao) : "")
+  + (u.perfil === "consultivo" ? `<div class="mun">Vê: ${uEscF(uEmpsTxt(u))}</div>` : "");
 function uEscF(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 const SIT = { pendente: ["Pendente", "b-warn"], aprovado: ["Ativo", "b-ok"], recusado: ["Recusado", "b-gray"], bloqueado: ["Bloqueado", "b-bad"] };
 const uEsc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -30,8 +32,8 @@ async function renderUsuarios(CTX) {
 
   $("uPendT").textContent = `Pedidos de acesso (${pend.length})`;
   $("uPend").innerHTML = pend.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Empresa</th><th>Pedido em</th><th></th></tr></thead><tbody>${
-    pend.map(u => `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${selPerfil(u)}${u.funcao ? `<div class="mun">Função informada: ${uEsc(u.funcao)}</div>` : ""}</td><td>${selEmp(u)}</td><td>${uData(u.criado_em)}</td>
-      <td><div class="acoes"><button class="btn ok" data-a="aprovar">Aprovar</button><button class="btn no" data-a="recusar">Recusar</button></div></td></tr>`).join("")}</tbody></table></div>`
+    pend.map(u => `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${selPerfil(u)}${u.funcao ? `<div class="mun">Função informada: ${uEsc(u.funcao)}</div>` : ""}${u.perfil === "consultivo" ? `<div class="mun">Empresas pedidas: ${uEsc(uEmpsTxt(u))}</div>` : ""}</td><td>${selEmp(u)}</td><td>${uData(u.criado_em)}</td>
+      <td><div class="acoes"><button class="btn ok" data-a="aprovar">Aprovar</button><button class="btn" data-x="editar">Editar</button><button class="btn no" data-a="recusar">Recusar</button></div></td></tr>`).join("")}</tbody></table></div>`
     : '<div class="empty">Nenhum pedido aguardando aprovação.</div>';
 
   $("uTodos").innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th>Decidido em</th><th></th></tr></thead><tbody>${
@@ -45,7 +47,7 @@ async function renderUsuarios(CTX) {
 
   const porId = id => data.find(u => u.user_id === id);
   const recarregar = async msg => { await renderUsuarios(CTX); contarPendentes(CTX); if (msg) $("uMsg").textContent = msg; };
-  document.querySelectorAll("#uTodos button[data-x]").forEach(b => b.onclick = async () => {
+  document.querySelectorAll("#uTodos button[data-x], #uPend button[data-x]").forEach(b => b.onclick = async () => {
     const u = porId(b.closest("tr").dataset.id); if (!u) return;
     if (b.dataset.x === "editar") return editarUsuario(CTX, u, empresas, recarregar);
     return excluirUsuario(CTX, u, recarregar);
@@ -78,7 +80,7 @@ async function editarUsuario(CTX, u, empresas, recarregar) {
   const eu = u.user_id === CTX.uid;
   const { data: imp } = await CTX.sb.rpc("usuario_impacto", { p_usuario: u.user_id });
   const vis = v => { const s = id => { const el = document.getElementById("dc_" + id); if (el) el.closest(".fl").hidden = !v; }; return s; };
-  const ajustar = perfil => { vis(perfil === "empresa")("empresa"); vis(perfil === "consultivo")("funcao"); };
+  const ajustar = perfil => { vis(perfil === "empresa")("empresa"); vis(perfil === "consultivo")("funcao"); vis(perfil === "consultivo")("emps"); };
   UI.dialogo({
     titulo: `Editar usuário: ${u.nome || u.email}`, botao: "Salvar",
     texto: `${uEsc(u.email)}${eu ? "<br>Você pode corrigir o seu nome. O seu perfil só pode ser alterado por outra pessoa da gerência." : ""}`,
@@ -86,14 +88,18 @@ async function editarUsuario(CTX, u, empresas, recarregar) {
       { id: "nome", rot: "Nome completo", obrig: true, valor: u.nome || "", max: 120 },
       ...(eu ? [] : [{ id: "perfil", rot: "Perfil", tipo: "select", obrig: true, valor: u.perfil, opcoes: Object.entries(PERFIL_NOME).map(([v, t]) => ({ v, t })), aoMudar: v => ajustar(v.perfil) }]),
       { id: "empresa", rot: "Empresa", tipo: "select", obrig: true, valor: u.empresa || "", opcoes: empresas, oculto: u.perfil !== "empresa" },
-      { id: "funcao", rot: "Função", obrig: true, valor: u.funcao || "", max: 60, oculto: u.perfil !== "consultivo", dica: "Ex.: Diretoria, Fiscal de contrato, Fiscal do contrato Classe A." }
+      { id: "funcao", rot: "Função", obrig: true, valor: u.funcao || "", max: 60, oculto: u.perfil !== "consultivo", dica: "Ex.: Diretoria, Fiscal de contrato, Fiscal do contrato Classe A." },
+      { id: "emps", rot: "Empresas que pode ver e fiscalizar", tipo: "checks", obrig: true, oculto: u.perfil !== "consultivo", dica: "Só as O.S. dessas empresas aparecem para essa pessoa (Visão geral, Fila, Fiscalização e exportações).",
+        opcoes: [{ valor: "__todas", rotulo: "<b>Todas as empresas</b> (Diretoria)", marcado: !!u.todas_empresas }].concat(empresas.map(e => ({ valor: e, rotulo: uEsc(e), marcado: !u.todas_empresas && (u.empresas || []).includes(e) }))) }
     ],
     enviar: async v => {
       const perfil = eu ? u.perfil : v.perfil;
       const sai = imp && (imp.aguardando + imp.devolvidas) > 0 && (u.perfil === "gmap" || u.perfil === "tecnico") && !(perfil === "gmap" || perfil === "tecnico");
       if (perfil !== u.perfil && !(await UI.confirmar({ titulo: `Mudar ${u.nome || u.email} de ${PERFIL_NOME[u.perfil]} para ${PERFIL_NOME[perfil]}?`, botao: "Mudar o perfil",
         texto: "As permissões mudam no próximo acesso dessa pessoa." + (sai ? `<br><b>Atenção:</b> essa pessoa tem ${imp.aguardando + imp.devolvidas} ${imp.aguardando + imp.devolvidas === 1 ? "solicitação" : "solicitações"} em andamento e, com o novo perfil, não poderá mais corrigir.` : "") }))) return false;
-      const { error } = await CTX.sb.rpc("usuario_editar", { p_usuario: u.user_id, p_nome: v.nome, p_perfil: perfil, p_empresa: perfil === "empresa" ? v.empresa : null, p_funcao: perfil === "consultivo" ? v.funcao : null });
+      const todas = (v.emps || []).includes("__todas"), emps = todas ? [] : (v.emps || []).filter(e => e !== "__todas");
+      const { error } = await CTX.sb.rpc("usuario_editar", { p_usuario: u.user_id, p_nome: v.nome, p_perfil: perfil, p_empresa: perfil === "empresa" ? v.empresa : null,
+        p_funcao: perfil === "consultivo" ? v.funcao : null, p_empresas: perfil === "consultivo" ? emps : [], p_todas: perfil === "consultivo" && todas });
       if (error) return error.message;
       if (eu && v.nome !== CTX.nome) { const n = document.getElementById("uNome"); if (n) n.textContent = v.nome; }
       await recarregar("Usuário atualizado.");

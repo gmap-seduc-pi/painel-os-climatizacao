@@ -429,3 +429,45 @@ input[readonly]{background:var(--bg);color:var(--muted)}
 th.ordon .thord{color:var(--brand)}th.ordon .ordi{color:var(--brand);opacity:1}
 #ford{display:none}
 @media (max-width:700px){ #ford{display:block;flex:1 1 100%;order:2;font-size:16px;min-height:44px;min-width:0;width:100%;max-width:100%;box-sizing:border-box} }
+
+/* fiscalização */
+.fisf{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.fisf label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);flex:1 1 180px;min-width:0}
+.fisf select,.fisf input{font:inherit;font-weight:400;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:#fff;width:100%;box-sizing:border-box}
+.kpis.fisk .v small{font-size:16px;color:var(--muted);font-weight:600}
+.fchips{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.fchip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink);min-height:34px}
+.fchip b{margin-left:4px}.fchip.on{background:var(--soft);border-color:var(--brand2);color:var(--brand)}
+.fchip.zero{opacity:.55;cursor:default}
+.fish{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.fish h3{margin:0}
+.fisb{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.falt{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.falt span{font-size:11px;color:var(--bad);font-weight:600}
+.txbad{color:var(--bad)!important;font-weight:600}
+table.fist td{vertical-align:top}
+@media (max-width:700px){ .fish .acoes{width:100%} .fish .acoes .btn{flex:1 1 100%} .kpis.fisk{grid-template-columns:1fr 1fr} .falt span{font-size:12px} }
+@media (max-width:700px){ table.fisr{font-size:12px} table.fisr th,table.fisr td{padding:6px 4px} .fisres .grid2{gap:8px} }
+.fisres .grid2{margin:10px 0 0}.fisres .grid2>.card{border:0;padding:0;margin:0;box-shadow:none;background:none}
+@media (max-width:700px){
+  /* rótulo do cartão em fluxo (não sobrepõe o próximo campo quando quebra em duas linhas) */
+  table.tcard td[data-label]{display:flow-root}
+  table.tcard td[data-label]::before{position:static;float:left;width:61.6%;margin-left:-66.67%;padding-right:6px;box-sizing:border-box}
+}
+
+.cemps{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:10px 0;display:flex;flex-direction:column;gap:2px}
+.cemps legend{font-size:13px;font-weight:600;padding:0 4px}
+.cemps[hidden]{display:none!important}
+.chk1 input:disabled+span{opacity:.5}
+
+.cfgl{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.cfgi{display:flex;gap:4px;align-items:center}
+.cfgi input{flex:1;min-width:0;font:inherit;border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.fmot{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.fmot span{font-size:11px;background:#FDECEC;color:var(--bad);border-radius:999px;padding:2px 8px;font-weight:600}
+#fLimpa{display:inline-flex;align-items:center;gap:6px}
+
+.dnav{display:flex;align-items:center;gap:4px;flex:0 0 auto}
+.dnav .dpos{font-size:12px;color:var(--muted);white-space:nowrap;min-width:56px;text-align:center}
+.dnav .ib[disabled]{opacity:.35;cursor:default}
+@media (max-width:700px){ .dnav .ibt{display:none!important} .dnav .ib{min-width:40px;min-height:40px} .dhead{flex-wrap:wrap} }
