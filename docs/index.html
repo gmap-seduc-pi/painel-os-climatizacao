@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.1.0">
+<link rel="stylesheet" href="style.css?v=2.2.0">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -35,12 +35,14 @@
       <select id="cPerfil" required>
         <option value="">Selecione</option>
         <option value="empresa">Empresa contratada</option>
-        <option value="diretoria">Diretoria</option>
+        <option value="consultivo">Consultivo (Diretoria, fiscal de contrato)</option>
         <option value="tecnico">Técnico GMAP</option>
         <option value="gmap">GMAP (gerência)</option>
       </select>
     </label>
     <label id="lEmp" hidden>Empresa<select id="cEmpresa"><option value="">Selecione</option></select></label>
+    <label id="lFun" hidden>Função<select id="cFuncao"><option value="">Selecione</option><option>Diretoria</option><option>Fiscal de contrato</option><option value="outra">Outra</option></select></label>
+    <label id="lFunO" hidden>Qual função?<input type="text" id="cFuncaoO" maxlength="60"></label>
     <label>Senha (mínimo de 10 caracteres)<input type="password" id="cS1" minlength="10" required autocomplete="new-password"></label>
     <label>Repita a senha<input type="password" id="cS2" minlength="10" required autocomplete="new-password"></label>
     <div class="lerr" id="cErr"></div>
@@ -58,9 +60,11 @@
 </div>
 <div id="carregando" class="login"><div class="sub">Carregando…</div></div>
 <div class="drawer" id="dSenha"><form class="panel" id="fSenha" style="height:auto;margin:auto;border-radius:10px;max-width:420px">
-  <h2>Alterar senha</h2><p class="sub">Mínimo de 10 caracteres.</p>
-  <label class="fl">Nova senha<input type="password" id="s1" minlength="10" required autocomplete="new-password"></label>
-  <label class="fl">Repita a nova senha<input type="password" id="s2" minlength="10" required autocomplete="new-password"></label>
+  <h2>Minha conta</h2><p class="sub" id="sPerf"></p>
+  <label class="fl">Nome completo<input type="text" id="sNome" maxlength="120" autocomplete="name"></label>
+  <p class="sub" style="margin-top:6px">Para trocar a senha, preencha os dois campos abaixo (mínimo de 10 caracteres). Deixe em branco para manter a atual.</p>
+  <label class="fl">Nova senha<input type="password" id="s1" minlength="10" autocomplete="new-password"></label>
+  <label class="fl">Repita a nova senha<input type="password" id="s2" minlength="10" autocomplete="new-password"></label>
   <div class="lerr" id="sErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="sCanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div>
 </form></div>
@@ -71,7 +75,7 @@
     <div class="div"></div>
     <div><h1>Painel de O.S. de Climatização</h1><div class="sub">Gerência de Material e Patrimônio (GMAP) · <span id="refd"></span></div></div>
     <div class="sp"></div>
-    <div class="user"><div><b id="uNome"></b><div class="sub" id="uPerfil"></div></div><button class="btn" id="bSenha" aria-label="Alterar senha" title="Alterar senha"><span class="so-cel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg></span><span class="so-pc">Alterar senha</span></button><button class="btn" id="bSair">Sair</button></div>
+    <div class="user"><div><b id="uNome"></b><div class="sub" id="uPerfil"></div></div><button class="btn" id="bSenha" aria-label="Minha conta" title="Minha conta: nome e senha"><span class="so-cel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg></span><span class="so-pc">Minha conta</span></button><button class="btn" id="bSair">Sair</button></div>
   </div>
   <div class="wrap">
     <div class="tabs" id="tabs">
@@ -132,6 +136,7 @@
       <div class="qbar">
         <input id="q" placeholder="Buscar por nº da O.S., escola, INEP ou SEI">
         <select id="fprazo" class="btn"><option value="">Todas as situações de prazo</option><option>Vencida</option><option>A vencer</option><option>No prazo</option><option>Atendida no prazo</option><option>Atendida antes da O.S.</option><option>Atendida fora do prazo</option></select>
+        <select id="ford" class="btn" aria-label="Ordenar a fila"></select>
         <span class="cnt" id="cnt"></span>
         <div class="menu" id="mExp"><button class="btn pri" id="bExp">Exportar ▾</button>
           <div class="mlist">
@@ -152,7 +157,7 @@
       </div>
       <div class="selaviso" id="selAviso" hidden>Mostrando só as O.S. selecionadas. A pesquisa e o filtro de prazo voltam ao clicar em <b>Voltar à lista</b>.</div>
       <div class="tbl"><table id="tb"><thead><tr>
-        <th><input type="checkbox" id="all" title="Selecionar página"></th><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Prioridade</th><th>Criada</th><th>Prazo</th><th>Situação do prazo</th><th>Status</th>
+        <th><input type="checkbox" id="all" title="Selecionar página"></th><th data-ord="num">Nº O.S.</th><th data-ord="emp">Empresa</th><th data-ord="esc">Escola</th><th data-ord="prio">Prioridade</th><th data-ord="cri">Criada</th><th data-ord="prz">Prazo</th><th data-ord="sp">Situação do prazo</th><th data-ord="st">Status</th>
       </tr></thead><tbody></tbody></table></div>
       <div class="pager"><button class="btn" id="prev">Anterior</button><span id="pinfo"></span><button class="btn" id="next">Próxima</button></div>
     </section>
@@ -164,11 +169,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=2.1.0"></script>
-<script src="ui.js?v=2.1.0"></script>
-<script src="painel.js?v=2.1.0"></script>
-<script src="usuarios.js?v=2.1.0"></script>
-<script src="emissao.js?v=2.1.0"></script>
-<script src="app.js?v=2.1.0"></script>
+<script src="config.js?v=2.2.0"></script>
+<script src="ui.js?v=2.2.0"></script>
+<script src="painel.js?v=2.2.0"></script>
+<script src="usuarios.js?v=2.2.0"></script>
+<script src="emissao.js?v=2.2.0"></script>
+<script src="app.js?v=2.2.0"></script>
 </body>
 </html>

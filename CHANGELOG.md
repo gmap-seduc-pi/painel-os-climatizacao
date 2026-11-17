@@ -4,6 +4,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.2.0] - 2026-11-17
+
+Requer a migração `supabase/migrations/006_perfis_e_usuarios.sql` (depois da 005).
+
+### Adicionado
+- Perfil **Consultivo** (substitui "Diretoria"), com a função da pessoa (Diretoria, Fiscal de contrato ou outra). Vê a Visão geral e a Fila de todas as empresas e exporta relatórios, sem nenhuma ação sobre as O.S. Quem era Diretoria passa a Consultivo (Diretoria) automaticamente.
+- **Minha conta** (antes "Alterar senha"): cada usuário corrige o próprio nome e, se quiser, troca a senha.
+- Usuários (gerência):
+  - **Editar** nome, perfil, empresa e função de qualquer usuário (o próprio perfil não pode ser trocado), com confirmação ao mudar o perfil e aviso quando a pessoa tem solicitações em andamento;
+  - **Excluir** usuário, mostrando antes o que será afetado. O login e o cadastro são apagados; o nome continua no histórico das O.S.; solicitações em andamento passam para quem excluiu (as devolvidas voltam para a aprovação). Não é possível excluir a si mesmo nem o último usuário da gerência. Tudo fica registrado em `perfis_log`.
+- Fila de O.S.: ordenar por qualquer coluna clicando no título (1º clique ordena, 2º inverte, 3º volta à ordem padrão). "Situação do prazo" começa pelas mais atrasadas. No celular, o seletor "Ordenar" faz o mesmo. A ordem vale também para a busca, a seleção e as exportações.
+
+### Alterado
+- Nomes de escolas e entidades mantêm siglas e tipologias em maiúsculas (CETI, CEJA, U E, GRE, UAB, numerais romanos como II e XXIII) e o restante em "Primeira Maiúscula" (CETI Antônio Freitas, Pau D'Arco do Piauí).
+
 ## [2.1.0] - 2026-11-16
 
 Requer a migração `supabase/migrations/005_observacao_da_planilha.sql` (depois da 003 e da 004).

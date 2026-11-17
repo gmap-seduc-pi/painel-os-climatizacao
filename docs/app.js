@@ -14,7 +14,8 @@
     auth: { persistSession: true, autoRefreshToken: true }
   });
 
-  const NOMES = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", diretoria: "Diretoria", empresa: "Empresa" };
+  const NOMES = { gmap: "GMAP (gerência)", tecnico: "Técnico GMAP", consultivo: "Consultivo", empresa: "Empresa" };
+  let EU = null;   // meu cadastro (para "Minha conta")
   const hojeBR = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
   const fmtDH = s => new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
@@ -54,7 +55,7 @@
     const { data: { session } } = await sb.auth.getSession();
     if (!session) return show("login");
 
-    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, nome, email, situacao").eq("user_id", session.user.id);
+    const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, funcao, nome, email, situacao").eq("user_id", session.user.id);
     const p = perfis && perfis[0];
     if (ep || !p) {
       try { await sb.auth.signOut({ scope: "local" }); } catch (e) {}
@@ -79,8 +80,9 @@
         sb.from("sincronizacoes").select("executada_em").order("id", { ascending: false }).limit(1)
       ]);
       sb.from("acessos").insert({ agente: navigator.userAgent.slice(0, 200) }).then(() => {});
-      const perfil = p.perfil === "gmap" ? "gmap" : p.perfil === "tecnico" ? "tec" : p.perfil === "diretoria" ? "dir" : "emp:" + p.empresa;
-      const perfilNome = p.perfil === "empresa" ? "Empresa: " + p.empresa : NOMES[p.perfil];
+      const perfil = p.perfil === "gmap" ? "gmap" : p.perfil === "tecnico" ? "tec" : p.perfil === "consultivo" ? "dir" : "emp:" + p.empresa;
+      const perfilNome = p.perfil === "empresa" ? "Empresa: " + p.empresa : p.perfil === "consultivo" ? "Consultivo" + (p.funcao ? " · " + p.funcao : "") : NOMES[p.perfil];
+      EU = { nome: p.nome || "", email: p.email, perfilNome };
       $("uNome").textContent = p.nome || p.email;
       $("uPerfil").textContent = perfilNome;
       const ult = sinc.data && sinc.data[0];
@@ -125,7 +127,9 @@
       .map(e => `<option>${String(e).replace(/</g, "&lt;")}</option>`).join("");
   };
   $("aLogin").onclick = ev => { ev.preventDefault(); show("login"); };
-  $("cPerfil").onchange = () => { $("lEmp").hidden = $("cPerfil").value !== "empresa"; $("cEmpresa").required = $("cPerfil").value === "empresa"; };
+  $("cPerfil").onchange = () => { const v = $("cPerfil").value; $("lEmp").hidden = v !== "empresa"; $("cEmpresa").required = v === "empresa";
+    $("lFun").hidden = v !== "consultivo"; $("lFunO").hidden = v !== "consultivo" || $("cFuncao").value !== "outra"; };
+  $("cFuncao").onchange = () => { $("lFunO").hidden = $("cFuncao").value !== "outra"; if (!$("lFunO").hidden) $("cFuncaoO").focus(); };
   UI.aoEnviar("fCad", async ev => {
     ev.preventDefault();
     $("cErr").textContent = "";
@@ -135,10 +139,12 @@
     if ($("cS1").value !== $("cS2").value) return UI.alerta({ titulo: "As senhas não conferem", itens: "Digite a mesma senha nos dois campos.", campos: [$("cS2")] });
     const perfil = $("cPerfil").value, empresa = perfil === "empresa" ? $("cEmpresa").value : null;
     if (perfil === "empresa" && !empresa) return UI.alerta({ titulo: "Selecione a empresa", itens: "Para o perfil Empresa, escolha a empresa na lista.", campos: [$("cEmpresa")] });
+    const funcao = perfil !== "consultivo" ? null : $("cFuncao").value === "outra" ? $("cFuncaoO").value.trim() : $("cFuncao").value;
+    if (perfil === "consultivo" && (!funcao || funcao.length < 2)) return UI.alerta({ titulo: "Informe a função", itens: "Para o perfil Consultivo, diga a função (Diretoria, Fiscal de contrato ou outra).", campos: [$("cFuncao").value === "outra" ? $("cFuncaoO") : $("cFuncao")] });
     $("cBtn").disabled = true;
     const { data, error } = await sb.auth.signUp({
       email: $("cEmail").value.trim(), password: $("cS1").value,
-      options: { data: { nome: $("cNome").value.trim(), perfil, empresa } }
+      options: { data: { nome: $("cNome").value.trim(), perfil, empresa, funcao } }
     });
     $("cBtn").disabled = false;
     if (error) {
@@ -153,15 +159,28 @@
     show("pend");
   });
 
-  $("bSenha").onclick = () => { $("sErr").textContent = ""; $("s1").value = ""; $("s2").value = ""; $("dSenha").classList.add("on"); };
+  $("bSenha").onclick = () => { $("sErr").textContent = ""; $("s1").value = ""; $("s2").value = ""; $("sNome").value = EU ? EU.nome : "";
+    $("sPerf").textContent = EU ? EU.email + " · " + EU.perfilNome : ""; $("dSenha").classList.add("on"); setTimeout(() => $("sNome").focus(), 50); };
   $("sCanc").onclick = () => $("dSenha").classList.remove("on");
   UI.aoEnviar("fSenha", async ev => {
     ev.preventDefault();
-    if ($("s1").value.length < 10) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 10 caracteres.", campos: [$("s1")] });
-    if ($("s1").value !== $("s2").value) return UI.alerta({ titulo: "As senhas não conferem", itens: "Digite a mesma senha nos dois campos.", campos: [$("s2")] });
-    const { error } = await sb.auth.updateUser({ password: $("s1").value });
-    if (error) { $("sErr").textContent = "Não foi possível alterar: " + error.message; return; }
-    $("sErr").style.color = "var(--ok)"; $("sErr").textContent = "Senha alterada.";
+    const nome = $("sNome").value.trim().replace(/\s+/g, " "), trocaSenha = !!($("s1").value || $("s2").value), trocaNome = EU && nome !== EU.nome;
+    if (nome.length < 3) return UI.alerta({ titulo: "Informe o nome completo", itens: "O nome precisa ter pelo menos 3 caracteres.", campos: [$("sNome")] });
+    if (trocaSenha && $("s1").value.length < 10) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 10 caracteres.", campos: [$("s1")] });
+    if (trocaSenha && $("s1").value !== $("s2").value) return UI.alerta({ titulo: "As senhas não conferem", itens: "Digite a mesma senha nos dois campos.", campos: [$("s2")] });
+    if (!trocaNome && !trocaSenha) { $("dSenha").classList.remove("on"); return; }
+    const feito = [];
+    if (trocaNome) {
+      const { data: novo, error } = await sb.rpc("meu_nome", { p_nome: nome });
+      if (error) { $("sErr").textContent = "Não foi possível salvar o nome: " + error.message; return; }
+      EU.nome = novo; $("uNome").textContent = novo; feito.push("Nome salvo.");
+    }
+    if (trocaSenha) {
+      const { error } = await sb.auth.updateUser({ password: $("s1").value });
+      if (error) { $("sErr").textContent = feito.concat("Não foi possível alterar a senha: " + error.message).join(" "); return; }
+      feito.push("Senha alterada.");
+    }
+    $("sErr").style.color = "var(--ok)"; $("sErr").textContent = feito.join(" ");
     setTimeout(() => { $("dSenha").classList.remove("on"); $("sErr").style.color = ""; }, 1200);
   });
 

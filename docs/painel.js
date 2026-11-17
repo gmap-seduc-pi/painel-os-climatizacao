@@ -17,7 +17,23 @@ const fmt = s => s ? s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4) : "";
 const nf = n => n.toLocaleString("pt-BR");
 const pct = (a,b) => b ? (a/b*100).toLocaleString("pt-BR",{maximumFractionDigits:1})+"%" : "n/d";
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const tc = s => s.toLowerCase().replace(/(^|[\s(\/-])(\S)/g,(m,a,b)=>a+b.toUpperCase()).replace(/ (Do|De|Da|Dos|Das|E) /g,m=>m.toLowerCase());
+// Nomes em "Primeira Maiúscula", mantendo siglas e tipologias em maiúsculas (CETI, CEJA, U E, GRE, II...)
+const SIGLAS = new Set(("CETI CEJA EJA CEEP CEMTI CEM CAIC CEI CMEI EEF UE GRE GRES UAB UAPI SEDUC SEAD SEDUC-PI INEP PI GMAP GEC UFIN UTD SUPEN CEPI UGP FUNART "+
+  "IFPI UESPI UFPI APAE CRAS CAPS UBS SESC SENAI SENAC EMEF EMEI ETI EPT AEE CETE CEFTI CEAJA NTE SUGESP SUPLAN").split(" "));
+const MINUSC = new Set(["de","da","do","dos","das","e","di","du","del"]);
+const ROMANO = /^(XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
+function tcPal(t, i) {
+  if (!t || /^[\/(),.'-]+$/.test(t)) return t;
+  const U = t.toUpperCase(), base = U.replace(/\./g, "");
+  if (SIGLAS.has(base)) return U;
+  if (/^([A-ZÀ-Ý]\.){2,}$/.test(U)) return U;                       // R.E.
+  if (base.length >= 2 && base.length <= 6 && ROMANO.test(base)) return U;  // II, IV, XII
+  const l = t.toLowerCase(); if (i > 0 && MINUSC.has(l)) return l;
+  return l.replace(/^(\P{L}*)(\p{L})/u, (m, a, b) => a + b.toUpperCase()).replace(/^(d')(\p{L})/iu, (m, a, b) => "D'" + b.toUpperCase());
+}
+const tc = s => { const w = String(s ?? "").trim().split(/\s+/); if (!w[0]) return "";
+  const ue = /^U\.?$/i.test(w[0]) && /^E\.?$/i.test(w[1] || "");            // "U E" = Unidade Escolar
+  return w.map((p, i) => ue && i < 2 ? p.toUpperCase() : p.split(/([\/(),-])/).map(t => tcPal(t, i)).join("")).join(" "); };
 
 let ALL=[], SOLIC=[], byInep={}, osCount={}, EMPS=[];
 function preparar(rows){
@@ -50,7 +66,7 @@ const STB = {"Atendida":"b-ok","Emitida":"b-info","Stand by":"b-warn","Cancelada
 const PRB = {"Urgente":"b-bad","Alta":"b-warn","Normal":"b-gray"};
 
 // ---------- perfis (simulação do login) ----------
-const PERFIS = [{id:"gmap",n:"GMAP (gerência)"},{id:"tec",n:"Técnico GMAP"},{id:"dir",n:"Diretoria"}].concat(EMPS.map(e=>({id:"emp:"+e,n:"Empresa: "+EMPN[e]})));
+const PERFIS = [{id:"gmap",n:"GMAP (gerência)"},{id:"tec",n:"Técnico GMAP"},{id:"dir",n:"Consultivo"}].concat(EMPS.map(e=>({id:"emp:"+e,n:"Empresa: "+EMPN[e]})));
 const $ = id => document.getElementById(id);
 let perfil=CTX.perfil, view="geral", page=0, sel=new Set();
 $("lateBy").onchange=()=>render();
@@ -237,9 +253,48 @@ function renderAud(L){
 
 // ---------- fila ----------
 function filaList(){
-  if(soSel) return [...sel].map(find).filter(Boolean).sort(ordFila);
+  if(soSel) return [...sel].map(find).filter(Boolean).sort(ordUsuario);
   const q=$("q").value.trim().toLowerCase(), sp=$("fprazo").value;
-  return filtered().filter(o=>(!sp||o.sp===sp)&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q))).sort(ordFila);
+  return filtered().filter(o=>(!sp||o.sp===sp)&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q))).sort(ordUsuario);
+}
+// Ordenação escolhida pelo usuário (clique no título da coluna, ou "Ordenar" no celular).
+// Sem escolha, vale a ordem padrão: em aberto primeiro, das mais atrasadas para as menos.
+let ORD=null;   // {c: coluna, d: 1 crescente | -1 decrescente}
+const PRIO_N={Urgente:0,Alta:1,Normal:2};
+const ORD_COL={
+  num:{n:"Nº O.S.",f:o=>{const m=String(o.os||"").match(/(\d+)\D+(\d{4})/);return m?(+m[2])*1e6+(+m[1]):null},a:"menor → maior",z:"maior → menor"},
+  emp:{n:"Empresa",f:o=>EMPN[o.emp]||o.emp||null,a:"A → Z",z:"Z → A"},
+  esc:{n:"Escola",f:o=>o.escola?tc(o.escola):null,a:"A → Z",z:"Z → A"},
+  prio:{n:"Prioridade",f:o=>o.prio in PRIO_N?PRIO_N[o.prio]:null,a:"Urgente primeiro",z:"Normal primeiro"},
+  cri:{n:"Criada",f:o=>o.criada||null,a:"mais antigas primeiro",z:"mais novas primeiro"},
+  prz:{n:"Prazo",f:o=>o.prazo||null,a:"mais próximo primeiro",z:"mais distante primeiro"},
+  sp:{n:"Situação do prazo",f:o=>o.atraso??null,a:"menos atrasadas primeiro",z:"mais atrasadas primeiro"},
+  st:{n:"Status",f:o=>o.status||null,a:"A → Z",z:"Z → A"}
+};
+function ordUsuario(a,b){
+  if(!ORD) return ordFila(a,b);
+  const f=ORD_COL[ORD.c].f, x=f(a), y=f(b);
+  if(x==null||y==null) return x==null&&y==null?ordFila(a,b):x==null?1:-1;   // sem valor vai sempre para o fim
+  const r=typeof x==="number"&&typeof y==="number"?x-y:String(x).localeCompare(String(y),"pt-BR",{numeric:true,sensitivity:"base"});
+  return r?r*ORD.d:ordFila(a,b);
+}
+function marcarOrdem(){
+  document.querySelectorAll("#tb th[data-ord]").forEach(th=>{ const on=ORD&&ORD.c===th.dataset.ord;
+    th.setAttribute("aria-sort",on?(ORD.d>0?"ascending":"descending"):"none");
+    th.querySelector(".ordi").textContent=on?(ORD.d>0?"▲":"▼"):"↕"; th.classList.toggle("ordon",!!on); });
+  $("ford").value=ORD?ORD.c+":"+ORD.d:"";
+}
+function ligarOrdem(){
+  document.querySelectorAll("#tb th[data-ord]").forEach(th=>{
+    const t=th.textContent; th.innerHTML=`<button type="button" class="thord" title="Ordenar por ${esc(t)}">${esc(t)} <span class="ordi" aria-hidden="true">↕</span></button>`;
+    th.querySelector("button").onclick=()=>{ const c=th.dataset.ord;
+      ORD = !ORD||ORD.c!==c ? {c,d:c==="sp"?-1:1} : ORD.d===(c==="sp"?-1:1) ? {c,d:-ORD.d} : null;   // 1º clique, 2º inverte, 3º volta ao padrão
+      page=0; marcarOrdem(); renderFila(); };
+  });
+  $("ford").innerHTML=`<option value="">Ordem padrão (mais atrasadas)</option>`+Object.entries(ORD_COL).map(([c,o])=>
+    `<option value="${c}:1">${o.n}: ${o.a}</option><option value="${c}:-1">${o.n}: ${o.z}</option>`).join("");
+  $("ford").onchange=()=>{ const v=$("ford").value; ORD=v?{c:v.split(":")[0],d:+v.split(":")[1]}:null; page=0; marcarOrdem(); renderFila(); };
+  marcarOrdem();
 }
 function ordFila(a,b){const ra=OPEN.includes(a.status)?0:1, rb=OPEN.includes(b.status)?0:1; if(ra!==rb) return ra-rb; return (b.atraso??-1e9)-(a.atraso??-1e9)}
 // Seleção: fica guardada independente da pesquisa e dos filtros; a barra mostra quantas há e quantas estão fora da lista atual
@@ -286,6 +341,7 @@ $("selFora").onclick=()=>{soSel=true; page=0; renderFila()};
 $("selLimpar").onclick=()=>{sel.clear(); soSel=false; renderFila()};
 $("prev").onclick=()=>{page--;renderFila()}; $("next").onclick=()=>{page++;renderFila()};
 $("q").oninput=()=>{page=0;renderFila()}; $("fprazo").onchange=()=>{page=0;renderFila()};
+ligarOrdem();
 
 // ---------- detalhe ----------
 const find = k => ALL.find(o=>String(o.id)===String(k)) || SOLIC.find(o=>String(o.id)===String(k));
@@ -385,7 +441,7 @@ function posicionarIcones(){ const fim=document.querySelector(".tabs-fim"); if(M
 new MutationObserver(atualizarConf).observe($("mConf"),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
 function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX);
   else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else renderFila(); }
-// abas por perfil: técnico vê tudo menos Usuários; diretoria e empresa só consultam
+// abas por perfil: técnico vê tudo menos Usuários; consultivo (diretoria, fiscais) e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
 // fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
 const EMISSAO = !(CTX.config && CTX.config.planilha_ativa);

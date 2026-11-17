@@ -9,7 +9,7 @@ Sistema de emissão e acompanhamento das ordens de serviço de climatização da
 - **Fila de O.S.:** consulta, filtros, detalhe, impressão de O.S. única ou em lote e relatórios em Excel e PDF.
 - **Auditoria dos dados** (só GMAP): provável backlog artificial, duplicidades, canceladas por motivo e falhas de preenchimento.
 
-Perfis: **gerência GMAP**, **técnico GMAP** e **diretoria** veem todas as empresas; cada **empresa** vê só as próprias O.S. A separação é feita no banco (RLS), não no navegador.
+Perfis: **gerência GMAP**, **técnico GMAP** e **Consultivo** (Diretoria, fiscais de contrato) veem todas as empresas; cada **empresa** vê só as próprias O.S. A separação é feita no banco (RLS), não no navegador.
 
 ## Como funciona
 

@@ -35,11 +35,12 @@ window.iniciarEmissao = function (P) {
       const lab = `<span>${esc(c.rot)}${c.obrig ? ' <i class="obr">obrigatório</i>' : ""}</span>`;
       const dica = c.dica ? `<small>${esc(c.dica)}</small>` : "";
       if (c.tipo === "textarea") return `<label class="fl">${lab}<textarea id="dc_${c.id}" rows="${c.linhas || 3}" maxlength="${c.max || 1000}">${esc(c.valor || "")}</textarea>${dica}</label>`;
-      if (c.tipo === "select") return `<label class="fl">${lab}<select id="dc_${c.id}"><option value="">Selecione</option>${c.opcoes.map(o => `<option ${o === c.valor ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>${dica}</label>`;
+      if (c.tipo === "select") return `<label class="fl"${c.oculto ? " hidden" : ""}>${lab}<select id="dc_${c.id}"><option value="">Selecione</option>${c.opcoes.map(o => { const v = typeof o === "object" ? o.v : o, t = typeof o === "object" ? o.t : o;
+        return `<option value="${esc(v)}" ${v === c.valor ? "selected" : ""}>${esc(t)}</option>`; }).join("")}</select>${dica}</label>`;
       if (c.tipo === "checks") return `<div class="fl" id="dc_${c.id}">${lab}${c.opcoes.map(o => `<label class="chk1"><input type="checkbox" value="${esc(o.valor)}" ${o.marcado ? "checked" : ""}><span>${o.rotulo}</span></label>`).join("")}${dica}</div>`;
       if (c.tipo === "anexo") return UI.campoAnexo(c.id, lab, c.dica);
       if (c.tipo === "file") return `<label class="fl">${lab}<input type="file" id="dc_${c.id}" accept="${c.aceita || ""}">${dica}</label>`;
-      return `<label class="fl">${lab}<input type="${c.tipo || "text"}" id="dc_${c.id}" value="${esc(c.valor || "")}" ${c.maxData ? `max="${c.maxData}"` : ""}>${dica}</label>`;
+      return `<label class="fl"${c.oculto ? " hidden" : ""}>${lab}<input type="${c.tipo || "text"}" id="dc_${c.id}" value="${esc(c.valor || "")}" ${c.maxData ? `max="${c.maxData}"` : ""} ${c.max ? `maxlength="${c.max}"` : ""}>${dica}</label>`;
     };
     d.innerHTML = `<div class="dlgp" role="dialog" aria-modal="true" aria-labelledby="dTit" id="dBox"><h2 id="dTit">${esc(titulo)}</h2>${texto ? `<div class="sub">${texto}</div>` : ""}
       ${(campos || []).map(campo).join("")}<div class="lerr" id="dErr"></div>
@@ -54,7 +55,8 @@ window.iniciarEmissao = function (P) {
     const primeiro = d.querySelector("textarea,select,input:not([type=checkbox]):not([type=file])"); if (primeiro) setTimeout(() => primeiro.focus(), 50);
     UI.aoEnviar($("dBox"), async () => {
       const v = valores();
-      const falta = (campos || []).filter(c => c.obrig && (Array.isArray(v[c.id]) ? !v[c.id].length : !v[c.id]));
+      const visivel = c => { const el = $("dc_" + c.id); const l = el && el.closest(".fl"); return !(l && l.hidden); };
+      const falta = (campos || []).filter(c => c.obrig && visivel(c) && (Array.isArray(v[c.id]) ? !v[c.id].length : !v[c.id]));
       if (falta.length) return UI.alerta({ titulo: "Preencha antes de continuar", itens: falta.map(c => c.rot), campos: falta.map(c => $("dc_" + c.id)) });
       const curto = (campos || []).filter(c => c.min && v[c.id] && v[c.id].length < c.min);
       if (curto.length) return UI.alerta({ titulo: "Texto muito curto", itens: curto.map(c => `${c.rot}: escreva pelo menos ${c.min} caracteres.`), campos: curto.map(c => $("dc_" + c.id)) });
@@ -62,10 +64,12 @@ window.iniciarEmissao = function (P) {
       let e;
       try { e = await enviar(v); } catch (x) { e = String(x.message || x); }
       if ($("dOk")) $("dOk").disabled = false;
+      if (e === false) return;   // a própria ação desistiu (ex.: não confirmou): o diálogo continua aberto
       if (e) { $("dErr").textContent = e; return UI.alerta({ titulo: "Não foi possível concluir", itens: e }); }
       fechar();
     });
   }
+  UI.dialogo = dialogo;
   const DICA_ANEXO = "PDF ou fotos de cada página (no celular, \"Tirar foto\" abre a câmera). Até 10 MB.";
   async function subirAnexo(o, anexo) {
     let arq; try { arq = await UI.pdfDoAnexo(anexo); } catch (e) { return { erro: String(e.message || e) }; }
@@ -484,7 +488,7 @@ window.iniciarEmissao = function (P) {
     }
     const rec = S.filter(o => o.status === "Recusada" && (GMAP || o.solicitado_por === CTX.uid));
     const devG = GMAP ? S.filter(o => o.status === "Devolvida") : [];
-    if (devG.length) h += `<div class="card"><h3>Devolvidas aguardando correção do técnico (${devG.length})</h3>${devG.map(o => cartaoSolic(o, "")).join("")}</div>`;
+    if (devG.length) h += `<div class="card"><h3>Devolvidas aguardando correção do técnico (${devG.length})</h3>${devG.map(o => cartaoSolic(o, o.solicitado_por === CTX.uid ? `<button class="btn pri" data-a="reenviar">Corrigir e reenviar</button>` : "")).join("")}</div>`;
     h += `<details class="card"><summary><h3 style="display:inline">Recusadas (${rec.length})</h3></summary>${rec.length ? rec.map(o => cartaoSolic(o, "")).join("") : '<div class="empty">Nenhuma.</div>'}</details>`;
     $("v-aprov").innerHTML = h;
     const achar = el => P.find(el.closest("[data-id]").dataset.id);
@@ -642,7 +646,7 @@ window.iniciarEmissao = function (P) {
       campos: [{ id: "sug", rot: "Correção sugerida", tipo: "textarea", obrig: true, min: 10, dica: "Diga o que está errado e qual é o valor certo." }],
       enviar: async v => ok("O.S. em revisão. A gerência vai analisar.")(await rpc("os_revisao", { p_id: o.id, p_sugestao: v.sug })) });
   }
-  const PERFIL_NOME = { gmap: "Gerência GMAP", tecnico: "Técnico GMAP", diretoria: "Diretoria", empresa: "Empresa" };
+  const PERFIL_NOME = { gmap: "Gerência GMAP", tecnico: "Técnico GMAP", consultivo: "Consultivo", diretoria: "Diretoria", empresa: "Empresa" };
   const ACAO = { "atualizada pela planilha": "Atualizada pela planilha", "importou da planilha": "Importou da planilha", "aplicou mudança da planilha": "Aplicou no sistema a mudança da planilha", "manteve o sistema": "Manteve o sistema (mudança da planilha)", "anexou a O.S. assinada": "Anexou a O.S. assinada", "solicitou": "Solicitou a emissão", "reenviou": "Corrigiu e reenviou", "aprovou": "Aprovou e emitiu", "emitiu": "Emitiu", "devolveu": "Devolveu para correção", "recusou": "Recusou",
     "registrou atendimento": "Registrou o atendimento", "corrigiu atendimento": "Corrigiu o atendimento", "desfez atendimento": "Desfez o atendimento", "colocou em stand by": "Colocou em stand by",
     "retomou": "Retomou", "cancelou": "Cancelou", "colocou em revisão": "Colocou em revisão", "em revisão": "Em revisão pela GMAP", "revisão concluída": "Revisão concluída",
