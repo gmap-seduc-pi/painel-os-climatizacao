@@ -48,10 +48,19 @@
       equipe ? sb.from("planilha_pendencias").select("*").order("id", { ascending: false }).limit(1000) : Promise.resolve({ data: [] }),
       gestao ? carregarTudo("os_conferencias", "*").catch(() => []) : Promise.resolve([])
     ]);
+    // medição: contratos, períodos, itens, preços (a empresa vê o próprio contrato); quantitativo, conferência e histórico só para a gestão
+    const opc = (t, ok) => ok ? carregarTudo(t, "*").catch(() => []) : Promise.resolve([]);
+    const [contratos, periodos, itens, precos, qtd, osItens, itensConf, log] = await Promise.all([
+      opc("contratos", true), opc("contrato_periodos", true), opc("contrato_itens", true), opc("item_precos", true),
+      gestao ? sb.from("item_quantidades").select("*").range(0, 9999).then(r => r.data || []) : Promise.resolve([]), opc("os_itens", true),
+      gestao ? sb.from("os_itens_conf").select("*").range(0, 49999).then(r => r.data || []) : Promise.resolve([]),
+      gestao ? sb.from("contratos_log").select("*").order("id", { ascending: false }).limit(300).then(r => r.data || []) : Promise.resolve([])
+    ]);
     // conferência atual de cada O.S. = a última registrada
     const conferencias = {}; conf.forEach(c => { conferencias[c.os_id] = c; });
     return { rows: linhas.map(paraPainel), entidades: ents, empresasCad: emps.data || [], mudancas: muds.data || [],
-             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias };
+             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias,
+             med: { contratos, periodos, itens, precos, qtd, osItens, itensConf, log } };
   }
   async function iniciar() {
     show("carregando");

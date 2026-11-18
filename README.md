@@ -8,7 +8,8 @@ Sistema de emissão e acompanhamento das ordens de serviço de climatização da
 - **Visão geral:** O.S. em aberto, vencidas, a vencer e cumprimento de prazo por empresa e prioridade.
 - **Fila de O.S.:** consulta, filtros, detalhe, impressão de O.S. única ou em lote e relatórios em Excel e PDF.
 - **Fiscalização:** atendimentos de um período por empresa, pontos de atenção, conferência pelos fiscais (Consultivo, por empresa) com motivos de glosa e ressalva, relatório e download das O.S. assinadas em .zip.
-- **Configurações:** motivos de glosa e ressalva e data a partir da qual a O.S. assinada em PDF é obrigatória.
+- **Medição:** contratos, períodos de vigência, itens, preços e quantitativo; itens declarados pela empresa no atendimento, conferência por item, saldo por período e relatório de medição do mês.
+- **Configurações:** motivos de glosa e ressalva e datas a partir das quais a O.S. assinada em PDF e os itens do contrato são exigidos.
 - **Auditoria dos dados** (só GMAP): provável backlog artificial, duplicidades, canceladas por motivo e falhas de preenchimento.
 
 Perfis: **gerência GMAP**, **técnico GMAP** veem todas as empresas; **Consultivo** (Diretoria, fiscais de contrato) vê todas ou só as empresas liberadas pela gerência; cada **empresa** vê só as próprias O.S. A separação é feita no banco (RLS), não no navegador.

@@ -7,6 +7,7 @@ window.iniciarFiscalizacao = function (P) {
   const { CTX, $, esc, fmt, tc, nf, EMPN, SERV, SERVN, PRIOS } = P;
   const sb = CTX.sb;
   const PODE = P.podeConferir;                       // gerência e Consultivo
+  const MED = P.MED;                                 // itens do contrato declarados pela empresa
   const DENTRO = ["Atendida no prazo", "Atendida antes da O.S."];
   const SIT = { conferida: ["Conferida", "b-ok"], ressalva: ["Com ressalva", "b-warn"], glosada: ["Glosada", "b-bad"], aconferir: ["A conferir", "b-gray"] };
   const LIMITE_REGISTRO = 7;                         // dias entre o atendimento e o registro no sistema que viram alerta
@@ -43,6 +44,7 @@ window.iniciarFiscalizacao = function (P) {
       if (!o.pdf_caminho && exigePdf(o)) a.push(["semPdf", "Sem a O.S. assinada no sistema"]);
       if (lag != null && lag > LIMITE_REGISTRO) a.push(["tarde", `Registrado ${plural(lag, "dia", "dias")} depois da data informada`]);
       if (o.pend) a.push(["pend", "Empresa relatou pendências"]);
+      if (MED.exige(o.emp, o.atend) && !MED.itensOS(o).length) a.push(["semItens", "Sem os itens do contrato"]);
       if (c && c.situacao !== "pendente" && o.atendido_registrado_em && Date.parse(c.em) < Date.parse(o.atendido_registrado_em)) a.push(["mudou", "Atendimento alterado depois da conferência"]);
       const dup = [...new Set(o.serv.flatMap(s => (porChave[(o.inep || o.escola) + "|" + s] || []).filter(x => x !== o)))];
       if (dup.length) a.push(["dup", "Mesma escola e serviço no período: " + dup.map(x => x.os).join(", ")]);
@@ -50,7 +52,7 @@ window.iniciarFiscalizacao = function (P) {
     });
   }
   const ALERTAS = { fora: "Fora do prazo", semPdf: "Sem O.S. assinada", tarde: `Registro tardio (mais de ${LIMITE_REGISTRO} dias)`, antes: "Data anterior à emissão",
-                    dup: "Mesma escola e serviço", pend: "Pendências relatadas", mudou: "Alterada depois da conferência" };
+                    dup: "Mesma escola e serviço", pend: "Pendências relatadas", mudou: "Alterada depois da conferência", semItens: "Sem itens do contrato" };
 
   function dados() {
     const { de, ate } = periodo();
@@ -70,6 +72,7 @@ window.iniciarFiscalizacao = function (P) {
     const atrMed = fora.length ? Math.round(fora.reduce((s, x) => s + (x.o.atraso || 0), 0) / fora.length) : 0;
     const splits = A.reduce((s, x) => s + (+x.o.splits || 0), 0), semPdf = A.filter(x => x.alertas.some(a => a[0] === "semPdf")).length;
     const cont = k => A.filter(x => x.sit === k).length;
+    const VAL = A.map(x => MED.valorOS(x.o)), comItens = VAL.filter(v => v.n).length, vDecl = VAL.reduce((t, v) => t + v.decl, 0), vAc = VAL.reduce((t, v) => t + (v.aceito || 0), 0);
     const visiveis = A.filter(x => (ST.ver === "todas" || x.sit === ST.ver) && (!ST.alerta || x.alertas.some(a => a[0] === ST.alerta)));
     ST.sel = new Set([...ST.sel].filter(id => visiveis.some(x => String(x.o.id) === id)));
     const porServ = SERV.map(s => { const LL = A.filter(x => x.o.serv.includes(s)); return [SERVN[s] || s, LL.length, LL.reduce((t, x) => t + (+x.o.splits || 0), 0),
@@ -98,6 +101,7 @@ window.iniciarFiscalizacao = function (P) {
         <div class="kpi ok"><div class="v">${n ? Math.round(noPrazo / n * 100) : 0}%</div><div class="l">No prazo</div><div class="h">${plural(noPrazo, "O.S.", "O.S.")} de ${nf(n)}</div></div>
         <div class="kpi ${fora.length ? "bad" : ""}"><div class="v">${nf(fora.length)}</div><div class="l">Fora do prazo</div><div class="h">${fora.length ? "atraso médio de " + plural(atrMed, "dia", "dias") : "nenhuma"}</div></div>
         <div class="kpi ${semPdf ? "warn" : ""}"><div class="v">${nf(semPdf)}</div><div class="l">Sem O.S. assinada</div><div class="h">exigida desde ${fmt(pdfDesde())}</div></div>
+        ${comItens ? `<div class="kpi"><div class="v mval">${MED.brl(vDecl)}</div><div class="l">Valor declarado</div><div class="h">${MED.brl(vAc)} aceito na conferência · ${plural(comItens, "O.S.", "O.S.")} com itens</div></div>` : ""}
         <div class="kpi"><div class="v">${nf(cont("conferida") + cont("ressalva") + cont("glosada"))}<small>/${nf(n)}</small></div><div class="l">Conferidas</div><div class="h">${nf(cont("ressalva"))} com ressalva · ${nf(cont("glosada"))} glosada${cont("glosada") === 1 ? "" : "s"}</div></div>
       </div>
       ${n ? `      <div class="card"><h3>Pontos de atenção</h3><div class="d">Toque para ver só as O.S. com aquele ponto.</div>
@@ -116,7 +120,7 @@ window.iniciarFiscalizacao = function (P) {
             return `<tr class="r" data-id="${o.id}">${PODE ? `<td class="tc-sem"><input type="checkbox" class="fck" aria-label="Selecionar O.S. ${esc(o.os)}" ${ST.sel.has(String(o.id)) ? "checked" : ""}></td>` : ""}
               <td><b>${esc(o.os)}</b><div class="mun">${esc(EMPN[o.emp] || o.emp)} · ${esc(o.prio || "")}</div></td>
               <td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}${o.gre ? " · " + esc(o.gre) : ""}</div></td>
-              <td>${esc(o.serv.map(t => SERVN[t] || t).join(", "))}${o.splits != null ? `<div class="mun">${plural(+o.splits, "split", "splits")}</div>` : ""}</td>
+              <td>${esc(o.serv.map(t => SERVN[t] || t).join(", "))}${o.splits != null ? `<div class="mun">${plural(+o.splits, "split", "splits")}</div>` : ""}${(() => { const v = MED.valorOS(o); return v.n ? `<div class="mun mitv" title="${esc(MED.resumoItens(o))}">${plural(v.n, "item", "itens")} · ${MED.brl(v.decl)}${v.aceito != null && v.aceito !== v.decl ? ` · aceito ${MED.brl(v.aceito)}` : ""}</div>` : ""; })()}</td>
               <td>${fmt(o.prazo)}<div class="mun">emitida ${fmt(o.criada)}</div></td>
               <td>${fmt(o.atend)}<div>${o.sp === "Atendida antes da O.S." ? '<span class="badge b-warn">Antes da emissão</span>' : DENTRO.includes(o.sp) ? '<span class="badge b-ok">No prazo</span>' : o.sp === "Atendida fora do prazo" ? `<span class="badge b-bad">${plural(o.atraso, "dia", "dias")} de atraso</span>` : `<span class="badge b-gray">${esc(o.sp)}</span>`}</div></td>
               <td>${x.reg ? fmt(x.reg) + (x.lag > 0 ? `<div class="mun ${x.lag > LIMITE_REGISTRO ? "txbad" : ""}">${plural(x.lag, "dia", "dias")} depois</div>` : `<div class="mun">no mesmo dia</div>`) : '<span class="mun">pela planilha</span>'}</td>
@@ -170,7 +174,15 @@ window.iniciarFiscalizacao = function (P) {
     const mostra = (id, s) => { const el = document.getElementById("dc_" + id); if (el) el.closest(".fl").hidden = !s; };
     const ajustar = v => { mostra("mg", v.sit === "glosada"); mostra("mr", v.sit === "ressalva");
       const lista = v.sit === "glosada" ? v.mg : v.sit === "ressalva" ? v.mr : [];
-      mostra("outro", (lista || []).includes("__outro")); };
+      mostra("outro", (lista || []).includes("__outro")); mostra("ia", v.sit === "glosada"); };
+    // O.S. com itens declarados: na glosa, o fiscal informa a quantidade aceita de cada item (conferida e ressalva aceitam tudo)
+    const IT = um ? MED.itensOS(lista[0]) : [];
+    const campoIt = IT.length ? { id: "ia", tipo: "custom", oculto: true, rot: "Quantidade aceita de cada item", dica: "Reduza a quantidade dos itens glosados (0 = item não aceito) e diga o motivo do item.",
+      html: `<div class="iac">${IT.map(r => `<div class="iar" data-id="${r.x.id}"><div><b>${esc(MED.nomeItem(r.it))}</b><div class="mun">declarado ${nf(r.x.quantidade)} · ${MED.brl(r.pu)} cada</div></div>
+        <input type="number" class="iaq" min="0" max="${r.x.quantidade}" step="1" inputmode="numeric" value="${r.c ? r.c.aceita : r.x.quantidade}" aria-label="Quantidade aceita">
+        <input type="text" class="iam" maxlength="200" placeholder="Motivo (se reduzir)" value="${esc(r.c && r.c.motivo || "")}" aria-label="Motivo da glosa do item"></div>`).join("")}</div>`,
+      ler: el => [...el.querySelectorAll(".iar")].map(d => ({ id: +d.dataset.id, aceita: d.querySelector(".iaq").value === "" ? null : Number(d.querySelector(".iaq").value), motivo: d.querySelector(".iam").value.trim() })) } : null;
+    const comItens = lista.filter(o => MED.itensOS(o).length);
     UI.dialogo({
       titulo: um ? `Conferência da O.S. ${lista[0].os}` : `Conferência de ${nf(lista.length)} O.S.`, botao: "Registrar conferência",
       texto: (um ? `${esc(tc(lista[0].escola || ""))} · atendida em ${fmt(lista[0].atend)}` : "A mesma situação vale para todas as selecionadas.") +
@@ -181,13 +193,22 @@ window.iniciarFiscalizacao = function (P) {
         { id: "mg", rot: "Motivos da glosa (um ou mais)", tipo: "checks", obrig: true, oculto: true, opcoes: opc(LG), aoMudar: ajustar },
         { id: "mr", rot: "Motivos da ressalva (um ou mais)", tipo: "checks", obrig: true, oculto: true, opcoes: opc(LR), aoMudar: ajustar },
         { id: "outro", rot: "Descreva o outro motivo", obrig: true, oculto: true, max: 200 },
+        ...(campoIt ? [campoIt] : []),
         { id: "obs", rot: "Observação", tipo: "textarea", linhas: 3, dica: "Opcional (obrigatória para desfazer a conferência). Fica separada dos motivos." }
       ],
       enviar: async v => {
         if (v.sit === "pendente" && (v.obs || "").length < 5) return "Explique por que a conferência foi desfeita (mínimo de 5 caracteres).";
         const marcados = v.sit === "glosada" ? v.mg : v.sit === "ressalva" ? v.mr : [];
         const motivos = (marcados || []).filter(m => m !== "__outro").concat((marcados || []).includes("__outro") ? ["Outro: " + v.outro] : []);
-        const { data, error } = await sb.rpc("os_conferir", { p_ids: lista.map(o => o.id), p_situacao: v.sit, p_motivos: motivos, p_obs: v.obs || null });
+        let itens = null;
+        if (v.sit === "glosada" && !um && comItens.length) return `Glosa em lote não vale para O.S. com itens declarados (${comItens.map(o => o.os).join(", ")}): glose uma por vez, informando a quantidade aceita de cada item.`;
+        if (v.sit === "glosada" && campoIt) {
+          itens = v.ia;
+          const ruim = itens.find((x, i) => !Number.isInteger(x.aceita) || x.aceita < 0 || x.aceita > IT[i].x.quantidade);
+          if (ruim) return "A quantidade aceita de cada item deve ser um número inteiro entre 0 e o declarado.";
+          if (!itens.some((x, i) => x.aceita < IT[i].x.quantidade)) return "Na glosa, reduza a quantidade aceita de ao menos um item.";
+        }
+        const { data, error } = await sb.rpc("os_conferir", { p_ids: lista.map(o => o.id), p_situacao: v.sit, p_motivos: motivos, p_obs: v.obs || null, p_itens: itens });
         if (error) return error.message;
         ST.sel.clear(); await P.recarregar();
         P.aviso(`Conferência registrada em ${plural(data, "O.S.", "O.S.")}.`, "ok");
@@ -203,10 +224,12 @@ window.iniciarFiscalizacao = function (P) {
       fmt(o.criada), fmt(o.prazo), fmt(o.atend), DENTRO.includes(o.sp) ? "No prazo" : o.sp, o.sp === "Atendida fora do prazo" ? o.atraso : "",
       o.just || "", o.pend || "", x.reg ? fmt(x.reg) : "Pela planilha", x.lag ?? "", o.pdf_caminho ? (o.pdf || "Sim") : exigePdf(o) ? "Falta" : "Não exigida (emitida antes de " + fmt(pdfDesde()) + ")",
       s[0], c && c.situacao !== "pendente" ? motivosTxt(c) : "", c && c.situacao !== "pendente" ? (c.quem_nome || "") + (c.funcao ? " (" + c.funcao + ")" : "") : "",
-      c && c.situacao !== "pendente" ? fmt(diaLocal(c.em)) : "", x.alertas.map(a => a[1]).join("; "), c && c.situacao !== "pendente" ? c.obs || "" : ""]; };
+      c && c.situacao !== "pendente" ? fmt(diaLocal(c.em)) : "", x.alertas.map(a => a[1]).join("; "), c && c.situacao !== "pendente" ? c.obs || "" : "",
+      ...(() => { const v = MED.valorOS(o); return [v.n ? MED.resumoItens(o) : "", v.n ? Math.round(v.decl * 100) / 100 : "", v.aceito != null ? Math.round(v.aceito * 100) / 100 : ""]; })()]; };
   const CAB = ["Nº O.S.", "Empresa", "Escola / entidade", "INEP", "GRE", "Município", "Serviço", "Splits", "Prioridade", "Emitida em", "Prazo", "Atendida em",
     "Situação do prazo", "Dias de atraso", "Justificativa da empresa", "Pendências relatadas", "Registrado no sistema em", "Dias até o registro", "O.S. assinada",
-    "Conferência", "Motivos da conferência", "Conferido por", "Conferido em", "Pontos de atenção", "Observação da conferência"];
+    "Conferência", "Motivos da conferência", "Conferido por", "Conferido em", "Pontos de atenção", "Observação da conferência",
+    "Itens do contrato", "Valor declarado (R$)", "Valor aceito (R$)"];
 
   function exportar(de, ate, A, S) {
     const cab = [["Relatório de fiscalização dos atendimentos · GMAP | SEDUC-PI"], [descricao(de, ate)], ["Emitido em " + new Date().toLocaleString("pt-BR") + " por " + (CTX.nome || "")], []];
@@ -254,7 +277,7 @@ window.iniciarFiscalizacao = function (P) {
   let CFG = null;
   async function renderConfig() {
     const c = CTX.config || {};
-    if (!CFG) CFG = { mg: [...(c.motivos_glosa || [])], mr: [...(c.motivos_ressalva || [])], pdf: pdfDesde() };
+    if (!CFG) CFG = { mg: [...(c.motivos_glosa || [])], mr: [...(c.motivos_ressalva || [])], pdf: pdfDesde(), med: MED.medDesde() };
     const { data: log } = await sb.from("config_log").select("*").order("id", { ascending: false }).limit(15);
     const lista = (k, tit, d) => `<div class="card"><h3>${tit}</h3><div class="d">${d}</div>
       <div class="cfgl" data-l="${k}">${CFG[k].map((m, i) => `<div class="cfgi"><input type="text" value="${esc(m)}" data-i="${i}" maxlength="120" aria-label="Motivo ${i + 1}">
@@ -262,11 +285,14 @@ window.iniciarFiscalizacao = function (P) {
         <button type="button" class="ib" data-dn="${i}" ${i < CFG[k].length - 1 ? "" : "disabled"} aria-label="Descer">${UI.icone("descer")}</button>
         <button type="button" class="ib" data-rm="${i}" aria-label="Remover">${UI.icone("recusar")}</button></div>`).join("")}</div>
       <button type="button" class="btn" data-add="${k}">+ Adicionar motivo</button><div class="mun" style="margin-top:6px">"Outro (descrever)" aparece sempre no fim da lista; não precisa cadastrar.</div></div>`;
-    const mudou = JSON.stringify([CFG.mg, CFG.mr, CFG.pdf]) !== JSON.stringify([c.motivos_glosa || [], c.motivos_ressalva || [], pdfDesde()]);
+    const mudou = JSON.stringify([CFG.mg, CFG.mr, CFG.pdf, CFG.med]) !== JSON.stringify([c.motivos_glosa || [], c.motivos_ressalva || [], pdfDesde(), MED.medDesde()]);
     $("v-cfg").innerHTML = `
       <div class="card"><h3>O.S. assinada (PDF ou fotos)</h3>
         <div class="d">A O.S. assinada é obrigatória no registro do atendimento e cobrada na Fiscalização só nas O.S. <b>emitidas a partir desta data</b>. Nas anteriores, a empresa pode anexar, mas não é obrigada.</div>
         <label class="fl" style="max-width:260px">Exigida nas O.S. emitidas a partir de<input type="date" id="cfgPdf" value="${esc(CFG.pdf)}"></label></div>
+      <div class="card"><h3>Itens do contrato no atendimento</h3>
+        <div class="d">A empresa passa a ser obrigada a informar os itens do contrato (serviços e peças, com a faixa de BTU e a quantidade) nos <b>atendimentos com data a partir deste dia</b>. Antes disso, pode informar, mas não é obrigada. Avise as empresas antes de mudar.</div>
+        <label class="fl" style="max-width:260px">Exigidos nos atendimentos a partir de<input type="date" id="cfgMed" value="${esc(CFG.med)}"></label></div>
       <div class="grid2">${lista("mg", "Motivos de glosa", "Opções rápidas ao glosar uma O.S. na Fiscalização (pode marcar mais de um).")}${lista("mr", "Motivos de ressalva", "Opções rápidas ao conferir com ressalva.")}</div>
       <div class="card mbar"><span class="sp">${mudou ? "Há alterações não salvas." : "Tudo salvo."}</span>
         <button type="button" class="btn" id="cfgDesc" ${mudou ? "" : "disabled"}>Descartar alterações</button>
@@ -281,20 +307,26 @@ window.iniciarFiscalizacao = function (P) {
       L.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { CFG[k].splice(+b.dataset.rm, 1); re(); }); });
     document.querySelectorAll("#v-cfg [data-add]").forEach(b => b.onclick = async () => { CFG[b.dataset.add].push(""); await re(); const ins = document.querySelectorAll(`#v-cfg .cfgl[data-l="${b.dataset.add}"] input`); if (ins.length) ins[ins.length - 1].focus(); });
     $("cfgPdf").onchange = () => { CFG.pdf = $("cfgPdf").value; re(); };
+    $("cfgMed").onchange = () => { CFG.med = $("cfgMed").value; re(); };
     $("cfgDesc").onclick = () => { CFG = null; re(); };
     $("cfgSal").onclick = async () => {
       const limpa = L => L.map(x => x.trim()).filter(Boolean);
       if (!limpa(CFG.mg).length || !limpa(CFG.mr).length) return UI.alerta({ titulo: "Lista vazia", itens: "Deixe pelo menos um motivo em cada lista." });
       if (CFG.pdf !== pdfDesde() && !(await UI.confirmar({ titulo: "Mudar a data da exigência da O.S. assinada?", botao: "Mudar a data",
         texto: `Passa a valer para as O.S. emitidas a partir de <b>${fmt(CFG.pdf)}</b>. As O.S. emitidas antes dessa data deixam de aparecer como "sem O.S. assinada".` }))) return;
+      if (!CFG.med) return UI.alerta({ titulo: "Data em branco", itens: "Informe a data a partir da qual os itens do contrato são exigidos." });
+      if (CFG.med !== MED.medDesde() && !(await UI.confirmar({ titulo: "Mudar a data da exigência dos itens?", botao: "Mudar a data",
+        texto: `As empresas passam a ser obrigadas a informar os itens nos atendimentos a partir de <b>${fmt(CFG.med)}</b>. Avise as empresas antes.` }))) return;
       $("cfgSal").disabled = true;
       const { error } = await sb.rpc("config_salvar", { p_motivos_glosa: limpa(CFG.mg), p_motivos_ressalva: limpa(CFG.mr), p_pdf_desde: CFG.pdf });
       if (error) { $("cfgSal").disabled = false; return UI.alerta({ titulo: "Não foi possível salvar", itens: error.message }); }
+      if (CFG.med !== MED.medDesde()) { const r = await sb.rpc("medicao_config_salvar", { p_desde: CFG.med });
+        if (r.error) { $("cfgSal").disabled = false; return UI.alerta({ titulo: "Não foi possível salvar a data dos itens", itens: r.error.message }); } }
       CFG = null; await P.recarregar(); P.aviso("Configurações salvas.", "ok"); renderConfig();
     };
   }
   const podeSairConfig = async () => { const c = CTX.config || {};
-    if (!CFG || JSON.stringify([CFG.mg, CFG.mr, CFG.pdf]) === JSON.stringify([c.motivos_glosa || [], c.motivos_ressalva || [], pdfDesde()])) { CFG = null; return true; }
+    if (!CFG || JSON.stringify([CFG.mg, CFG.mr, CFG.pdf, CFG.med]) === JSON.stringify([c.motivos_glosa || [], c.motivos_ressalva || [], pdfDesde(), MED.medDesde()])) { CFG = null; return true; }
     const ok = await UI.confirmar({ titulo: "Sair sem salvar as configurações?", botao: "Sair sem salvar", perigo: true, texto: "As alterações nos motivos ou na data serão perdidas." });
     if (ok) CFG = null; return ok; };
 

@@ -4,6 +4,31 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.4.0] - 2026-11-18
+
+Requer a migração `supabase/migrations/008_medicao.sql` (depois da 007).
+
+### Adicionado
+- **Medição pelos itens do contrato** (aba Medição: principal para o perfil Consultivo; no menu da engrenagem para a equipe da GMAP):
+  - cadastro de contratos, **períodos de vigência** (cada prorrogação abre um período e renova o quantitativo, copiado do período anterior), itens (serviços e peças por faixa de BTU), **preços com histórico de versões** (cada versão vale a partir de uma data, com o documento: contrato ou apostilamento) e quantidade por período;
+  - **consumo anterior à implantação** por item, informado pela GMAP com o documento SEI dos pagamentos já feitos no período;
+  - saldo por item (contratado, anterior, aceito, a conferir), com aviso em 80% e em 100%; o que passa do contratado continua registrado e aparece como "acima do contratado", para eventual pagamento indenizatório;
+  - medição do mês por O.S. (valor declarado e aceito), com Excel (por O.S. e por item) e impressão;
+  - aviso de fim de vigência 120, 90 e 60 dias antes, e de item esgotado, no contador da aba.
+- **Itens no atendimento:** a empresa informa os itens do contrato executados (serviço ou peça, faixa e quantidade), com o total calculado na hora. Obrigatório nos atendimentos a partir de uma data configurável (padrão 01/01/2027). Antes da conferência, a empresa pode corrigir os itens com motivo; a GMAP também pode informar pela empresa.
+- **Conferência por item** na Fiscalização: na glosa, o fiscal informa a quantidade aceita de cada item e o motivo; conferida e com ressalva aceitam todos os itens. A empresa não vê o resultado, só que os itens já foram conferidos. Glosa em lote não vale para O.S. com itens.
+- Fiscalização: valor declarado e aceito na lista, no resumo e no Excel; ponto de atenção "Sem itens do contrato".
+- **Empresas sem contrato** (pagas por nota de empenho, como a R.E. Soluções): ficam fora da medição; a gerência registra na O.S. o processo (PACTUE extra), a nota de empenho e o valor.
+- Configurações: data a partir da qual os itens do contrato são exigidos.
+- **Movimentações recentes**, para achar rápido o que acabou de mudar:
+  - Visão geral: card com as 6 O.S. movimentadas por último (ação, quem fez e quando), que abre o detalhe;
+  - Fila: botão **Recentes** (só as O.S. movimentadas nos últimos 7 dias, mais recentes primeiro), ordenação "Última movimentação" e, na coluna Status, "há 5 min", "ontem às 14:20" etc.; a O.S. alterada nos últimos 30 minutos aparece destacada com "Novo";
+  - a última movimentação vem do último evento público do histórico (a empresa não vê eventos internos, como a conferência).
+- Carga inicial: Contrato 119/2024 (Classe A, período do 3º Termo Aditivo, quantidades do 1º TA) e Contrato 012/2026 (Concretizar), com os 91 itens conferidos com os totais dos documentos.
+
+### Alterado
+- Desfazer o atendimento apaga os itens declarados (a empresa informa de novo ao registrar).
+
 ## [2.3.0] - 2026-11-17
 
 Requer a migração `supabase/migrations/007_fiscalizacao.sql` (depois da 006).
