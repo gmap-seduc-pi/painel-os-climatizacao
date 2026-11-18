@@ -4,6 +4,7 @@
    Todas as regras são conferidas no banco; esta tela só oferece as ações que o perfil pode fazer. */
 window.iniciarEmissao = function (P) {
   const { CTX, $, esc, fmt, tc, nf, EMPN, PRIOS, SERV, SERVN, STB, PRB, ORIG, REF, GMAP, TEC, EQUIPE } = P;
+  const MED = P.MED;   // itens do contrato (medição)
   const sb = CTX.sb;
   const EMPRESA = P.perfil.startsWith("emp:") ? P.perfil.slice(4) : null;
   const DIAS = { Urgente: 2, Alta: 10, Normal: 30 };
@@ -39,6 +40,7 @@ window.iniciarEmissao = function (P) {
         return `<option value="${esc(v)}" ${v === c.valor ? "selected" : ""}>${esc(t)}</option>`; }).join("")}</select>${dica}</label>`;
       if (c.tipo === "checks") return `<div class="fl" id="dc_${c.id}"${c.oculto ? " hidden" : ""}>${lab}${c.opcoes.map(o => `<label class="chk1"><input type="checkbox" value="${esc(o.valor)}" ${o.marcado ? "checked" : ""}><span>${o.rotulo}</span></label>`).join("")}${dica}</div>`;
       if (c.tipo === "anexo") return UI.campoAnexo(c.id, lab, c.dica);
+      if (c.tipo === "custom") return `<div class="fl" id="dc_${c.id}"${c.oculto ? " hidden" : ""}>${lab}${c.html}${dica}</div>`;
       if (c.tipo === "file") return `<label class="fl">${lab}<input type="file" id="dc_${c.id}" accept="${c.aceita || ""}">${dica}</label>`;
       return `<label class="fl"${c.oculto ? " hidden" : ""}>${lab}<input type="${c.tipo || "text"}" id="dc_${c.id}" value="${esc(c.valor || "")}" ${c.maxData ? `max="${c.maxData}"` : ""} ${c.max ? `maxlength="${c.max}"` : ""}>${dica}</label>`;
     };
@@ -49,9 +51,9 @@ window.iniciarEmissao = function (P) {
     const fechar = () => d.classList.remove("on");
     $("dCanc").onclick = fechar;
     d.onclick = e => { if (e.target === d) fechar(); };
-    const valores = () => { const v = {}; (campos || []).forEach(c => { const el = $("dc_" + c.id); v[c.id] = c.tipo === "anexo" ? UI.valorAnexo(el) : c.tipo === "file" ? el.files[0] || null : c.tipo === "checks" ? [...el.querySelectorAll("input:checked")].map(i => i.value) : el.value.trim(); }); return v; };
-    (campos || []).forEach(c => { if (c.tipo === "anexo") UI.ligarAnexo($("dc_" + c.id)); });
-    (campos || []).forEach(c => { if (c.aoMudar) $("dc_" + c.id).onchange = () => c.aoMudar(valores()); });
+    const valores = () => { const v = {}; (campos || []).forEach(c => { const el = $("dc_" + c.id); v[c.id] = c.tipo === "custom" ? c.ler(el) : c.tipo === "anexo" ? UI.valorAnexo(el) : c.tipo === "file" ? el.files[0] || null : c.tipo === "checks" ? [...el.querySelectorAll("input:checked")].map(i => i.value) : el.value.trim(); }); return v; };
+    (campos || []).forEach(c => { if (c.tipo === "anexo") UI.ligarAnexo($("dc_" + c.id)); if (c.tipo === "custom" && c.ligar) c.ligar($("dc_" + c.id)); });
+    (campos || []).forEach(c => { if (c.aoMudar) $("dc_" + c.id).addEventListener("change", () => c.aoMudar(valores())); });
     const primeiro = d.querySelector("textarea,select,input:not([type=checkbox]):not([type=file])"); if (primeiro) setTimeout(() => primeiro.focus(), 50);
     UI.aoEnviar($("dBox"), async () => {
       const v = valores();
@@ -622,6 +624,12 @@ window.iniciarEmissao = function (P) {
     if (a === "manter") return acaoManter(o);
     if (a === "atender" || a === "corrigir") {
       const corr = a === "corrigir";
+      // itens do contrato vigente na data do atendimento (exigidos a partir da data configurada); na correção, só se ainda não conferidos
+      const atuais = corr ? MED.itensOS(o) : [];
+      const dataIt = corr ? o.atend : REF;
+      const campoIt = atuais.some(r => r.c) ? null : MED.campoItens(o, dataIt, atuais.map(r => ({ item_id: r.x.item_id, quantidade: r.x.quantidade })), MED.exige(o.emp, dataIt));
+      if (campoIt) campoIt.data = dataIt;
+      const itensMudaram = L => JSON.stringify(L.map(r => [r.item_id, r.quantidade]).sort()) !== JSON.stringify(atuais.map(r => [r.x.item_id, r.x.quantidade]).sort());
       return dialogo({ titulo: corr ? `Corrigir o atendimento da O.S. ${o.os}` : `Registrar atendimento da O.S. ${o.os}`,
         texto: corr ? "A correção fica registrada no histórico, com o valor anterior e o novo." : `Prazo: ${fmt(o.prazo)}. Se o atendimento for depois do prazo, a justificativa é obrigatória.`,
         botao: corr ? "Salvar correção" : "Registrar atendimento",
@@ -630,13 +638,21 @@ window.iniciarEmissao = function (P) {
           { id: "pend", rot: "Pendências ou problemas encontrados", tipo: "textarea", valor: corr ? o.pend : "", dica: "Ex.: aparelho sem conserto, falta de ponto elétrico." },
           { id: "pdf", rot: corr ? "Substituir a O.S. assinada (opcional)" : exigePdf(o) ? "O.S. assinada" : "O.S. assinada (opcional)", tipo: "anexo", obrig: !corr && exigePdf(o),
             dica: DICA_ANEXO + (corr && o.pdf ? " Atual: " + o.pdf : "") + (!corr && !exigePdf(o) ? ` Não obrigatória: esta O.S. foi emitida antes de ${fmt((CTX.config && CTX.config.pdf_obrigatorio_desde) || "2026-12-01")}, mas anexar ajuda a fiscalização.` : "") }]
+          .concat(campoIt ? [campoIt] : [])
           .concat(corr ? [{ id: "motivo", rot: "Motivo da correção", tipo: "textarea", obrig: true, min: 10 }] : []),
         enviar: async v => {
           if (v.data > REF) return "A data do atendimento não pode ser futura.";
+          let itens = null;
+          if (campoIt) {
+            if (MED.contratoNa(o.emp, v.data) !== MED.contratoNa(o.emp, campoIt.data)) return "A data escolhida cai em outro período do contrato: feche e registre de novo para ver os itens desse período.";
+            const e = MED.validarItens(v.itens); if (e) return e;
+            if (!v.itens.length && MED.exige(o.emp, v.data)) return `Informe os itens do contrato executados (exigidos nos atendimentos a partir de ${fmt(MED.medDesde())}).`;
+            itens = corr ? (itensMudaram(v.itens) ? v.itens : null) : (v.itens.length ? v.itens : null);
+          }
           if (o.prazo && v.data > o.prazo && (v.just || "").length < 10) return "Atendimento depois do prazo: escreva a justificativa (mínimo de 10 caracteres).";
           let pdf = null, caminho = null;
           if (v.pdf) { const s = await subirAnexo(o, v.pdf); if (s.erro) return s.erro; pdf = s.nome; caminho = s.caminho; }
-          const r = await rpc("os_atendimento", { p_id: o.id, p_dados: { data: v.data, justificativa: v.just, pendencias: v.pend, pdf_nome: pdf, pdf_caminho: caminho, motivo_correcao: v.motivo || null } });
+          const r = await rpc("os_atendimento", { p_id: o.id, p_dados: { data: v.data, justificativa: v.just, pendencias: v.pend, pdf_nome: pdf, pdf_caminho: caminho, motivo_correcao: v.motivo || null, itens } });
           return ok(corr ? "Atendimento corrigido." : `Atendimento da O.S. ${o.os} registrado.`)(r);
         } });
     }

@@ -96,6 +96,7 @@ function buildFilters(){
   $("filters").innerHTML = FD.filter(f=>!(f.hideEmp&&isEmp)).map(f=>`<div><label>${f.n}</label><select data-k="${f.k}"><option value="">Todos</option>${f.opts().map(([v,t])=>`<option value="${esc(v)}" ${FV[f.k]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`).join("")
    + `<div><label>Criadas de</label><input type="date" data-k="de" value="${FV.de||""}"></div><div><label>até</label><input type="date" data-k="ate" value="${FV.ate||""}"></div>`
    + `<div><label>Atendidas de</label><input type="date" data-k="atDe" value="${FV.atDe||""}"></div><div><label>até</label><input type="date" data-k="atAte" value="${FV.atAte||""}"></div>`
+
    + `<div class="fbar">${FV.escola?`<span class="chip">Escola: ${esc(FV.escolaNome||FV.escola)} <button id="xEsc" title="Remover filtro de escola">×</button></span>`:""}${FV.semComp?`<span class="chip">Sem a O.S. assinada <button id="xComp" title="Remover este filtro">×</button></span>`:""}<button class="btn" id="clr">Limpar filtros</button></div>`;
   $("filters").querySelectorAll("select,input").forEach(el=>el.onchange=()=>{FV[el.dataset.k]=el.value;page=0;contarFiltros();render()});
   contarFiltros();
@@ -135,6 +136,17 @@ function stats(L){
 }
 let ch1,ch2;
 Chart.defaults.font.family='Montserrat,"Segoe UI",Arial,sans-serif'; Chart.defaults.color="#5C6670";
+// Visão geral: as O.S. que mudaram por último (emissão, atendimento, correção, cancelamento...), com atalho para a fila
+function renderRecentes(L){
+  const R=L.filter(o=>o.movimentada_em).sort((a,b)=>b.movimentada_em.localeCompare(a.movimentada_em)).slice(0,6);
+  const n7=L.filter(o=>recente(o,7*1440)).length;
+  $("recentes").innerHTML = R.length ? `<div class="fish"><h3>Movimentações recentes</h3><div class="acoes"><button class="btn" id="recVer">Ver as ${nf(n7)} dos últimos 7 dias na fila</button></div></div>
+    <div class="recl">${R.map(o=>`<button type="button" class="reci${recente(o,30)?" rec":""}" data-os="${esc(String(o.id))}"><span class="rech"><b>${esc(o.os)}</b><span class="badge ${STB[o.status]}">${esc(o.status)}</span></span>
+      <span class="recd">${esc(ACAO_TXT(o.movimentacao))}${o.movimentada_por?` · ${esc(o.movimentada_por)}`:""}</span><span class="mun">${esc(tc(o.escola||""))}</span><small>${esc(quando(o.movimentada_em))}</small></button>`).join("")}</div>` : "";
+  $("recentes").hidden=!R.length;
+  $("recentes").querySelectorAll(".reci").forEach(b=>b.onclick=()=>openDet(b.dataset.os,R.map(o=>String(o.id))));
+  if($("recVer")) $("recVer").onclick=()=>{ REC=true; ORD=null; $("fprazo").value=""; $("q").value=""; page=0; marcarOrdem(); setView("fila"); };
+}
 function renderGeral(L){
   L=L.filter(o=>!o.revisao);   // O.S. em revisão pela GMAP saem temporariamente das contagens
   EMI.faixaHoje(L);
@@ -147,6 +159,7 @@ function renderGeral(L){
     {v:pct(s.atNo,s.atBase),l:"Atendidas no prazo",h:`${nf(s.atNo)} de ${nf(s.atBase)} com datas válidas`,c:"ok"},
   ];
   const canFila = true;
+  renderRecentes(L);
   $("kpis").innerHTML=k.map((x,i)=>`<div class="kpi ${x.c||""} ${x.go&&canFila?"click":""}" data-i="${i}"><div class="v">${x.v}</div><div class="l">${x.l}</div><div class="h">${x.h}</div></div>`).join("");
   $("kpis").querySelectorAll(".kpi.click").forEach(el=>el.onclick=()=>{const g=k[+el.dataset.i].go; if(g.status){FV.status=g.status;buildFilters()} $("fprazo").value=g.sp||""; setView("fila")});
 
@@ -259,11 +272,12 @@ function renderAud(L){
 function filaList(){
   if(soSel) return [...sel].map(find).filter(Boolean).sort(ordUsuario);
   const q=$("q").value.trim().toLowerCase(), sp=$("fprazo").value;
-  return filtered().filter(o=>(!sp||o.sp===sp)&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q))).sort(ordUsuario);
+  return filtered().filter(o=>(!sp||o.sp===sp)&&(!REC||recente(o,7*1440))&&(!q||[o.os,o.escola,o.inep,o.sei,o.mun].join(" ").toLowerCase().includes(q))).sort(ordUsuario);
 }
 // Ordenação escolhida pelo usuário (clique no título da coluna, ou "Ordenar" no celular).
 // Sem escolha, vale a ordem padrão: em aberto primeiro, das mais atrasadas para as menos.
 let ORD=null;   // {c: coluna, d: 1 crescente | -1 decrescente}
+let REC=false;  // botão "Recentes" da fila: só as O.S. movimentadas nos últimos 7 dias, mais recentes primeiro
 const PRIO_N={Urgente:0,Alta:1,Normal:2};
 const ORD_COL={
   num:{n:"Nº O.S.",f:o=>{const m=String(o.os||"").match(/(\d+)\D+(\d{4})/);return m?(+m[2])*1e6+(+m[1]):null},a:"menor → maior",z:"maior → menor"},
@@ -273,9 +287,18 @@ const ORD_COL={
   cri:{n:"Criada",f:o=>o.criada||null,a:"mais antigas primeiro",z:"mais novas primeiro"},
   prz:{n:"Prazo",f:o=>o.prazo||null,a:"mais próximo primeiro",z:"mais distante primeiro"},
   sp:{n:"Situação do prazo",f:o=>o.atraso??null,a:"menos atrasadas primeiro",z:"mais atrasadas primeiro"},
-  st:{n:"Status",f:o=>o.status||null,a:"A → Z",z:"Z → A"}
+  st:{n:"Status",f:o=>o.status||null,a:"A → Z",z:"Z → A"},
+  mov:{n:"Última movimentação",f:o=>o.movimentada_em||null,a:"mais antigas primeiro",z:"mais recentes primeiro"}
 };
+// "há 5 min", "há 3 h", "ontem às 14:20", "12/11 às 09:05"
+function quando(ts){ if(!ts) return ""; const d=new Date(ts), m=Math.round((Date.now()-d)/6e4);
+  if(m<1) return "agora"; if(m<60) return `há ${m} min`; if(m<24*60) return `há ${Math.round(m/60)} h`;
+  const hm=d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit",timeZone:"America/Sao_Paulo"});
+  return (m<48*60?"ontem":d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit",timeZone:"America/Sao_Paulo"}))+" às "+hm; }
+const ACAO_TXT=a=>{ a=String(a||""); return a.charAt(0).toUpperCase()+a.slice(1); };
+const recente=(o,min)=>o.movimentada_em&&Date.now()-Date.parse(o.movimentada_em)<=min*6e4;
 function ordUsuario(a,b){
+  if(!ORD && REC) return String(b.movimentada_em||"").localeCompare(String(a.movimentada_em||""));   // filtro de movimentação: mais recentes primeiro
   if(!ORD) return ordFila(a,b);
   const f=ORD_COL[ORD.c].f, x=f(a), y=f(b);
   if(x==null||y==null) return x==null&&y==null?ordFila(a,b):x==null?1:-1;   // sem valor vai sempre para o fim
@@ -320,13 +343,15 @@ function renderFila(){
   const L=filaList(), n=L.length, pages=Math.max(1,Math.ceil(n/PS)); if(page>=pages) page=pages-1;
   const P=L.slice(page*PS,page*PS+PS);
   $("cnt").textContent=`${nf(n)} O.S.`;
+  $("bRec").setAttribute("aria-pressed",String(REC)); $("bRec").classList.toggle("on",REC);
+  $("bRec").onclick=()=>{ REC=!REC; if(REC) ORD=null; page=0; marcarOrdem(); renderFila(); };
   $("bPrintSel").disabled=!sel.size;
   const id=o=>String(o.id);
   $("tb").tBodies[0].innerHTML = P.length ? P.map(o=>{
     const pz = o.sp==="Vencida" ? `<span class="badge b-bad">Vencida há ${nf(o.atraso)} d</span>` : o.sp==="A vencer" ? `<span class="badge b-warn">Vence em ${nf(-o.atraso)} d</span>` : `<span class="badge ${SPB[o.sp]}">${o.sp}</span>`;
-    return `<tr class="r${sel.has(id(o))?" marc":""}" data-os="${esc(id(o))}"><td class="c-ck"><input type="checkbox" class="ck" aria-label="Selecionar O.S. ${esc(o.os)}" ${sel.has(id(o))?"checked":""}></td><td class="c-num"><b>${esc(o.os)}</b></td><td class="c-emp">${EMPN[o.emp]||esc(o.emp)}</td>
+    return `<tr class="r${sel.has(id(o))?" marc":""}${recente(o,30)?" rec":""}" data-os="${esc(id(o))}"><td class="c-ck"><input type="checkbox" class="ck" aria-label="Selecionar O.S. ${esc(o.os)}" ${sel.has(id(o))?"checked":""}></td><td class="c-num"><b>${esc(o.os)}</b></td><td class="c-emp">${EMPN[o.emp]||esc(o.emp)}</td>
     <td class="c-esc"><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td>
-    <td class="c-prio"><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="c-cri">${fmt(o.criada)}</td><td class="c-prz">${fmt(o.prazo)}</td><td class="c-sp">${pz}</td><td class="c-st"><span class="badge ${STB[o.status]}">${esc(o.status)}</span>${o.revisao?`<div><span class="badge b-rev">Em revisão</span></div>`:""}</td></tr>`}).join("")
+    <td class="c-prio"><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="c-cri">${fmt(o.criada)}</td><td class="c-prz">${fmt(o.prazo)}</td><td class="c-sp">${pz}</td><td class="c-st"><span class="badge ${STB[o.status]}">${esc(o.status)}</span>${o.revisao?`<div><span class="badge b-rev">Em revisão</span></div>`:""}${recente(o,7*1440)?`<div class="movt" title="${esc(ACAO_TXT(o.movimentacao)+(o.movimentada_por?" por "+o.movimentada_por:""))}">${recente(o,30)?'<span class="badge b-novo">Novo</span> ':""}${esc(quando(o.movimentada_em))}</div>`:""}</td></tr>`}).join("")
     : `<tr><td colspan="9" class="empty">Nenhuma O.S. encontrada.</td></tr>`;
   $("tb").tBodies[0].querySelectorAll("tr.r").forEach(tr=>{
     const ck=tr.querySelector(".ck");
@@ -375,11 +400,12 @@ function openDet(k,lista){const o=find(k); if(!o) return; DET_ATUAL=String(o.id)
      <button class="btn" id="xd">Fechar</button></div></div>
    ${EMI.faixaDetalhe(o)}
    <div class="dl">${osRows(o).slice(0).map(([a,b])=>`<div>${a}</div><div>${esc(b)}</div>`).join("")}</div>
+   ${MED.blocoDetalhe(o)}
    <div class="dacoes" id="dAcoes">${EMI.botoesDetalhe(o)}${PRE.includes(o.status)?"":UI.botaoIcone("imprimir","Imprimir esta O.S.").replace('data-acao="imprimir"','id="pd"')}</div>
    <h3 class="hist-t">Histórico</h3><div id="dHist" class="hist"><div class="mun">Carregando…</div></div>`;
   $("drawer").classList.add("on"); $("det").scrollTop=0; $("xd").onclick=closeDet; if($("pd")) $("pd").onclick=()=>printOS([o]);
   if(nav){ $("dAnt").onclick=()=>irDet(-1); $("dProx").onclick=()=>irDet(1); }
-  EMI.ligarDetalhe(o); EMI.historico(o);
+  EMI.ligarDetalhe(o); MED.ligarDetalhe(o); EMI.historico(o);
 }
 function closeDet(){$("drawer").classList.remove("on")}
 function irDet(d){ if(!NAV||!$("drawer").classList.contains("on")) return; const atual=NAV.indexOf(DET_ATUAL);
@@ -435,9 +461,9 @@ document.addEventListener("click",()=>$("mExp").classList.remove("on"));
 $("mExp").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>exp(b.dataset.x));
 
 // ---------- navegação ----------
-const VIEWS=["geral","fila","aprov","nova","fisc","planilha","aud","emp","modelo","cfg","usr"];
-const SEMFILTRO=["usr","aprov","nova","emp","modelo","planilha","fisc","cfg"];
-const GRUPO_CONF=["fisc","planilha","aud","emp","modelo","cfg"];
+const VIEWS=["geral","fila","aprov","nova","fisc","med","planilha","aud","emp","modelo","cfg","usr"];
+const SEMFILTRO=["usr","aprov","nova","emp","modelo","planilha","fisc","med","cfg"];
+const GRUPO_CONF=["fisc","med","planilha","aud","emp","modelo","cfg"];
 function setView(v,arg){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); $("tConf").classList.toggle("on",GRUPO_CONF.includes(v)); fecharConf(); VIEWS.forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=$("fTog").hidden=SEMFILTRO.includes(v); page=0; render(arg); window.scrollTo(0,0)}
 // trocar de aba pergunta antes se houver formulário preenchido (O.S. ou modelo)
 document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=async()=>{ const v=t.dataset.v; fecharConf(); if(v===view) return; if(!(await EMI.podeSair(view))) return; if(view==="cfg"&&!(await FIS.podeSairConfig())) return; setView(v); });
@@ -459,7 +485,7 @@ function posicionarIcones(){ const fim=document.querySelector(".tabs-fim"); if(M
 (MQ_CEL.addEventListener?MQ_CEL.addEventListener("change",posicionarIcones):MQ_CEL.addListener(posicionarIcones)); posicionarIcones();
 new MutationObserver(atualizarConf).observe($("mConf"),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
 function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX);
-  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
+  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="med") MED.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
 // abas por perfil: técnico vê tudo menos Usuários; consultivo (diretoria, fiscais) e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
 // fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
@@ -467,17 +493,23 @@ const EMISSAO = !(CTX.config && CTX.config.planilha_ativa);
 const OBSERVANDO = EMISSAO && !!(CTX.config && CTX.config.observar_planilha);
 const CONSULTIVO = perfil==="dir";
 // Fiscalização: aba principal para o Consultivo (fiscais, diretoria); para a equipe fica no menu da engrenagem
-if(!CONSULTIVO) $("mConf").insertBefore(document.querySelector('.tab[data-v="fisc"]'), document.querySelector('#mConf .tab[data-v="aud"]'));
-const ABAS = {fisc:EQUIPE||CONSULTIVO, cfg:GMAP, aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
+if(!CONSULTIVO){ $("mConf").insertBefore(document.querySelector('.tab[data-v="fisc"]'), document.querySelector('#mConf .tab[data-v="aud"]'));
+  $("mConf").insertBefore(document.querySelector('.tab[data-v="med"]'), document.querySelector('#mConf .tab[data-v="aud"]')); }
+const ABAS = {fisc:EQUIPE||CONSULTIVO, med:EQUIPE||CONSULTIVO, cfg:GMAP, aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
 Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}"]`).hidden=!ok);
 document.querySelector('.tab[data-v="usr"]').innerHTML=UI.icone("usuarios"); atualizarConf();
 if(GMAP) contarPendentes(CTX);
 // recarrega os dados do banco depois de cada ação e redesenha a tela atual
-async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); if(view!=="nova") render(); }
-const EMI = window.iniciarEmissao({CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
+async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); contarMed(); if(view!=="nova") render(); }
+// Medição: itens do contrato, saldo e cadastro (gerência, técnicos e fiscais; a empresa declara os itens no atendimento)
+const MED = window.iniciarMedicao({CTX, $, esc, fmt, tc, nf, EMPN, todos:()=>ALL, find, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), xlsx, doPrint, ph,
+  GMAP, CONSULTIVO, GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null, veEmpresa:()=>true, aviso:(m,t)=>UI.aviso(m,t)});
+function contarMed(){ const t=document.querySelector('.tab[data-v="med"]'), n=MED.contarAlertas(); t.innerHTML="Medição"+(n?`<span class="cnt">${n}</span>`:""); }
+contarMed();
+const EMI = window.iniciarEmissao({MED, CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
   todos:()=>ALL, solic:()=>SOLIC, find, openDet, closeDet, setView, recarregar, podeSair:()=>EMI.podeSair(view), xlsx, stamp:()=>new Date().toLocaleString("pt-BR"),
   verFila:(filtro)=>{ FV=Object.assign({},filtro||{}); buildFilters(); $("fprazo").value=""; setView("fila"); }});
-const FIS = window.iniciarFiscalizacao({CTX, $, esc, fmt, tc, nf, EMPN, SERV, SERVN, PRIOS, todos:()=>ALL, find, openDet, recarregar, xlsx, doPrint, ph,
+const FIS = window.iniciarFiscalizacao({MED, CTX, $, esc, fmt, tc, nf, EMPN, SERV, SERVN, PRIOS, todos:()=>ALL, find, openDet, recarregar, xlsx, doPrint, ph,
   podeConferir: GMAP||CONSULTIVO, aviso:(m,t)=>UI.aviso(m,t)});
 EMI.contarAprov();
 buildFilters(); render();
