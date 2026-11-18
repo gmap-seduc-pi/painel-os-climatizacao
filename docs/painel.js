@@ -89,7 +89,17 @@ function quebrarRotulo(t){ t=String(t||""); if(innerWidth>700||t.length<=16) ret
 function uniq(k){return [...new Set(base().map(o=>o[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true}))}
 let FV={};
 // celular: filtros recolhidos atrás do botão "Filtros (n)"
-function contarFiltros(){ const n=Object.keys(FV).filter(k=>FV[k]&&k!=="escolaNome").length; $("fTogN").textContent=n?` (${n})`:""; $("fTog").classList.toggle("ativo",n>0); }
+// filtros recolhidos atrás do botão "Filtros (n)"; os ativos aparecem como etiquetas removíveis ao lado
+function rotFiltro(k){ const f=FD.find(x=>x.k===k); if(f){ const o=f.opts().find(([v])=>v===FV[k]); return `${f.n}: ${o?o[1]:FV[k]}`; }
+  const d=x=>x?x.split("-").reverse().join("/"):"";
+  return {de:`Criadas a partir de ${d(FV.de)}`,ate:`Criadas até ${d(FV.ate)}`,atDe:`Atendidas a partir de ${d(FV.atDe)}`,atAte:`Atendidas até ${d(FV.atAte)}`,
+    escola:`Escola: ${FV.escolaNome||FV.escola}`,semComp:"Sem a O.S. assinada"}[k]||k; }
+function contarFiltros(){ const ks=Object.keys(FV).filter(k=>FV[k]&&k!=="escolaNome"), n=ks.length;
+  $("fTogN").textContent=n?` (${n})`:""; $("fTog").classList.toggle("ativo",n>0);
+  $("fChips").innerHTML = n ? ks.map(k=>`<span class="chip">${esc(rotFiltro(k))} <button type="button" data-xf="${k}" title="Remover este filtro" aria-label="Remover filtro ${esc(rotFiltro(k))}">×</button></span>`).join("")+`<button type="button" class="lnk" id="clr2">Limpar filtros</button>`
+    : `<span class="mun">Mostrando todas as O.S.${perfil.startsWith("emp:")?" da empresa":""}</span>`;
+  $("fChips").querySelectorAll("[data-xf]").forEach(b=>b.onclick=()=>{ delete FV[b.dataset.xf]; if(b.dataset.xf==="escola") delete FV.escolaNome; buildFilters(); page=0; render(); });
+  if($("clr2")) $("clr2").onclick=()=>{FV={};buildFilters();page=0;render()}; }
 $("fTog").onclick=()=>{ const ab=$("filters").classList.toggle("aberto"); $("fTog").setAttribute("aria-expanded",String(ab)); };
 function buildFilters(){
   const isEmp=perfil.startsWith("emp:");
@@ -285,7 +295,7 @@ const ORD_COL={
   esc:{n:"Escola",f:o=>o.escola?tc(o.escola):null,a:"A → Z",z:"Z → A"},
   prio:{n:"Prioridade",f:o=>o.prio in PRIO_N?PRIO_N[o.prio]:null,a:"Urgente primeiro",z:"Normal primeiro"},
   cri:{n:"Criada",f:o=>o.criada||null,a:"mais antigas primeiro",z:"mais novas primeiro"},
-  prz:{n:"Prazo",f:o=>o.prazo||null,a:"mais próximo primeiro",z:"mais distante primeiro"},
+  prz:{n:"Prazo",f:o=>o.prazo||null,a:"data mais antiga primeiro",z:"data mais recente primeiro"},
   sp:{n:"Situação do prazo",f:o=>o.atraso??null,a:"menos atrasadas primeiro",z:"mais atrasadas primeiro"},
   st:{n:"Status",f:o=>o.status||null,a:"A → Z",z:"Z → A"},
   mov:{n:"Última movimentação",f:o=>o.movimentada_em||null,a:"mais antigas primeiro",z:"mais recentes primeiro"}
