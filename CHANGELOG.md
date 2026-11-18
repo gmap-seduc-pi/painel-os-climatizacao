@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.5.0] - 2026-11-18
+
+Só arquivos do site (sem migração).
+
+### Alterado
+- **Topo mais limpo** na Visão geral e na Fila:
+  - filtros recolhidos atrás do botão **Filtros (n)**, também no computador; os filtros ativos aparecem ao lado como etiquetas, cada uma com × para remover, e "Limpar filtros";
+  - a faixa do dia (geradas hoje, aguardando aprovação, em revisão, lançamentos na planilha, stand by, sem a O.S. assinada) virou uma linha de etiquetas compactas; itens zerados ficam esmaecidos e o detalhe aparece ao passar o mouse; no celular, em duas colunas.
+- Ordenação por prazo: "data mais antiga primeiro" e "data mais recente primeiro" (antes "mais próximo", que confundia com as vencidas).
+
 ## [2.4.0] - 2026-11-18
 
 Requer a migração `supabase/migrations/008_medicao.sql` (depois da 007).

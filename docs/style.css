@@ -151,7 +151,7 @@ tr.marc td{background:#F3F8FE}
 .faixa.warn{background:var(--warnbg);border-color:#F1DFAF}.faixa.bad{background:var(--badbg);border-color:#F2B8AC}.faixa.rev{background:#F3EEFB;border-color:#D9CCF0}
 .faixa ul{margin:6px 0 0 18px;padding:0}
 /* faixa do dia na visão geral */
-.hoje{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.hoje{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:stretch}
 .hj{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;font:inherit;color:var(--ink)}
 .hj:hover{border-color:var(--brand2)}
 .hj b{font-size:24px;line-height:1.1}.hj span{font-size:13px;font-weight:600}.hj small{font-size:12px;color:var(--muted)}
@@ -302,7 +302,7 @@ input[readonly]{background:var(--bg);color:var(--muted)}
   .mqo{grid-template-columns:auto auto}.mqo .mqa{grid-column:1/-1}
 }
 
-.hoje .fase{grid-column:1/-1;margin:0}
+.hoje .fase{grid-column:1/-1;flex:1 1 100%;margin:0}
 
 /* 2.1.0: diferença da planilha no detalhe, caixas de marcar no diálogo */
 .faixa.plan .solb{margin-top:8px}
@@ -342,8 +342,19 @@ input[readonly]{background:var(--bg);color:var(--muted)}
 
 /* ===== 2.1.0: revisão para celular ===== */
 .so-cel{display:none}
-.ftog{display:none}
+.fres{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;min-height:36px}
+.fres[hidden]{display:none}
+.ftog{display:inline-flex;align-items:center;gap:6px}
 .ftog[hidden]{display:none!important}
+.ftog .fic{width:14px;height:10px;border-top:2px solid currentColor;border-bottom:2px solid currentColor;position:relative;box-sizing:border-box}
+.ftog .fic::after{content:"";position:absolute;left:3px;right:3px;top:2px;border-top:2px solid currentColor}
+.ftog .fseta{font-size:11px;transition:transform .15s}
+.ftog[aria-expanded="true"] .fseta{transform:rotate(180deg)}
+.ftog.ativo{border-color:var(--brand2);color:var(--brand);background:var(--soft);font-weight:600}
+.fchipsr{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.lnk{background:none;border:0;color:var(--brand);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:2px 4px}
+.filters{display:none}
+.filters.aberto{display:grid}
 #mx{overflow-x:auto}
 .mx th:first-child,.mx td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
 .solg span,.solg small,.ev,.dl div{overflow-wrap:anywhere}
@@ -363,7 +374,7 @@ input[readonly]{background:var(--bg);color:var(--muted)}
   .tabs{gap:0}
   .tabs>.tab{flex:1 1 auto;padding:12px 6px;font-size:13px;text-align:center}
   /* filtros recolhidos */
-  .ftog{display:inline-flex;align-items:center;gap:4px;width:100%;justify-content:center;min-height:44px;margin-bottom:10px}
+  .ftog{display:inline-flex;align-items:center;gap:6px;width:100%;justify-content:center;min-height:44px}
   .ftog.ativo{border-color:var(--brand2);color:var(--brand);background:var(--soft);font-weight:600}
   .filters{display:none}
   .filters.aberto{display:grid;grid-template-columns:1fr 1fr}
@@ -517,3 +528,19 @@ tr.inat td{opacity:.6}
 @media (max-width:980px){.recl{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.recl{grid-template-columns:1fr}}
 .btn.brec.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+/* ---------- Visão geral: faixa "hoje" compacta (2.5.0) ---------- */
+.hoje .hj{flex-direction:row;align-items:baseline;gap:6px;padding:7px 12px;border-left-width:4px;border-radius:999px;flex:0 1 auto;min-width:0}
+.hoje .hj b{font-size:17px}
+.hoje .hj span{font-size:13px;font-weight:600}
+.hoje .hj small{display:none}   /* o detalhe fica na dica (title); no celular aparece */
+.hoje .hj.zero{opacity:.62;border-left-color:var(--line)}
+.hoje .hj.zero b{color:var(--muted)}
+.hoje .hj.zero small{display:none}
+@media (max-width:700px){
+  .hoje{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .hoje .hj{border-radius:10px;padding:6px 10px;align-items:center}
+  .hoje .hj span{font-size:12.5px;line-height:1.2}
+  .fchipsr .mun{display:none}
+  .fres{margin-bottom:8px}
+  .fchipsr{width:100%}
+}
