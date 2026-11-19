@@ -574,3 +574,12 @@ body.saindo .wrap,body.saindo .top{opacity:.55;pointer-events:none;transition:op
   .fdi{grid-template-columns:40px 10px minmax(0,1fr);gap:6px;padding:10px 2px}
   .fdf select,.fdf input{font-size:16px;min-height:44px}
 }
+/* ---------- Medição: avisos com o que fazer ---------- */
+.mavisos{display:flex;flex-direction:column;gap:8px;margin:10px 0 12px}
+.mavt{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.mav{border:1px solid var(--line);border-left:4px solid #D99A00;border-radius:8px;padding:10px 12px;background:var(--warnbg)}
+.mav.bad{border-left-color:var(--bad);background:var(--badbg)}
+.mav.ciente{background:#fff;opacity:.75;border-left-color:var(--line)}
+.mavh{font-size:14px;margin-bottom:4px}
+.mavf{font-size:13px;color:#3d4652;margin-bottom:8px}
+#detMudou{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}

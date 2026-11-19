@@ -498,11 +498,34 @@ Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}
 document.querySelector('.tab[data-v="usr"]').innerHTML=UI.icone("usuarios"); atualizarConf();
 if(GMAP) contarPendentes(CTX);
 // recarrega os dados do banco depois de cada ação e redesenha a tela atual
-async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); contarMed(); contarFeed(); if(view==="feed") FEED.render(true); else if(view!=="nova") render(); }
+// tempo real: o app chama isto quando outra pessoa muda algo; o detalhe aberto ganha um aviso em vez de mudar sozinho
+CTX.atualizarTela = async (op) => {
+  const aberto = $("drawer").classList.contains("on") && DET_ATUAL ? ALL.find(o=>String(o.id)===String(DET_ATUAL)) : null, antes = aberto && aberto.movimentada_em;
+  if(op && op.tempoReal) await recarregar(op); else await recarregar();
+  if(op && op.tempoReal){ UI.aviso("Atualizado: há novas movimentações.", "info");
+    const agora = aberto && ALL.find(o=>String(o.id)===String(aberto.id));
+    if(agora && agora.movimentada_em!==antes && $("drawer").classList.contains("on") && String(DET_ATUAL)===String(agora.id) && !$("detMudou")){
+      $("det").insertAdjacentHTML("afterbegin",`<div class="faixa info" id="detMudou"><b>Esta O.S. foi alterada${agora.movimentada_por?" por "+esc(agora.movimentada_por):""}.</b> <button type="button" class="btn" id="detRec">Ver a versão atual</button></div>`);
+      $("detRec").onclick=()=>openDet(agora.id, NAV);
+    } }
+};
+// telas de gestão não se redesenham sozinhas no tempo real (uma escolha ainda não salva sumiria); só os contadores mudam
+const SO_CONTADORES=["usr","cfg","modelo","emp","planilha","nova"];
+async function recarregar(op){
+  const tr = op && op.tempoReal, parcial = tr && op.ids && op.ids.length && CTX.recarregarParcial;
+  if(!tr) CTX.recarregadoEm=Date.now();
+  const novo = parcial ? await CTX.recarregarParcial(op.ids) : await CTX.recarregar();
+  if(!tr) CTX.recarregadoEm=Date.now();
+  // guarda o campo com foco para devolvê-lo depois de redesenhar (a pessoa continua de onde estava)
+  const f=document.activeElement, fid=tr&&f&&f.id&&f.matches("input,select,textarea")?f.id:null; let sel=null; try{ sel=fid?[f.selectionStart,f.selectionEnd]:null }catch(e){}
+  Object.assign(CTX,novo); preparar(CTX.rows); buildFilters(); EMI.contarAprov(); contarMed(); contarFeed();
+  if(view==="feed") await FEED.render(tr ? "novos" : true);
+  else if(!(tr && SO_CONTADORES.includes(view)) && view!=="nova") render();
+  const g=fid&&$(fid); if(g&&document.activeElement!==g&&!g.closest("[hidden]")){ try{ g.focus({preventScroll:true}); if(sel&&sel[0]!=null) g.setSelectionRange(sel[0],sel[1]); }catch(e){} } }
 // Medição: itens do contrato, saldo e cadastro (gerência, técnicos e fiscais; a empresa declara os itens no atendimento)
 const MED = window.iniciarMedicao({CTX, $, esc, fmt, tc, nf, EMPN, todos:()=>ALL, find, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), xlsx, doPrint, ph,
-  GMAP, CONSULTIVO, GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null, veEmpresa:()=>true, aviso:(m,t)=>UI.aviso(m,t)});
-function contarMed(){ const t=document.querySelector('.tab[data-v="med"]'), n=MED.contarAlertas(); t.innerHTML="Medição"+(n?`<span class="cnt">${n}</span>`:""); }
+  GMAP, CONSULTIVO, GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null, veEmpresa:()=>true, aviso:(m,t)=>UI.aviso(m,t), contarMed:()=>contarMed()});
+function contarMed(){ const t=document.querySelector('.tab[data-v="med"]'), n=MED.contarAlertas(); t.innerHTML="Medição"+(n?`<span class="cnt">${n}</span>`:""); t.title=n?MED.resumoAlertas()+"\nAbra a Medição para ver o que fazer.":""; }
 contarMed();
 // Feed: movimentações das O.S., das mais recentes para as mais antigas (a aba vem antes da Visão geral, mas o login abre a Visão geral)
 const FEED = window.iniciarFeed({CTX, $, esc, tc, nf, EMPN, STB, todos:()=>ALL, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), contarFeed:()=>contarFeed(),
