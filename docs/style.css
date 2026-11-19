@@ -544,3 +544,33 @@ tr.inat td{opacity:.6}
   .fres{margin-bottom:8px}
   .fchipsr{width:100%}
 }
+/* ---------- Sair: resposta imediata ---------- */
+body.saindo{cursor:progress}
+body.saindo .wrap,body.saindo .top{opacity:.55;pointer-events:none;transition:opacity .15s}
+/* ---------- Feed ---------- */
+.fdf{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 6px;align-items:flex-end}
+.fdf label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;gap:2px;min-width:0}
+.fdf select,.fdf input{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;font-size:14px;text-transform:none;letter-spacing:0;min-width:0}
+.fdf .fdq{flex:1 1 260px}
+.fdg{padding-top:10px}
+.fddia{margin:0 0 6px;font-size:13px;color:var(--muted);text-transform:none;font-weight:700}
+.fdl{list-style:none;margin:0;padding:0}
+.fdl li{border-top:1px solid var(--line)}
+.fdl li:first-child{border-top:0}
+.fdi{display:grid;grid-template-columns:48px 14px minmax(0,1fr);gap:8px;align-items:start;width:100%;text-align:left;background:none;border:0;padding:10px 6px;cursor:pointer;font:inherit;color:inherit;border-radius:8px}
+.fdi:hover,.fdi:focus-visible{background:var(--soft);outline:none}
+.fdi.novo{background:#EEF5FF}
+.fdh{font-size:12.5px;color:var(--muted);padding-top:2px;font-variant-numeric:tabular-nums}
+.fdp{width:10px;height:10px;border-radius:50%;margin-top:5px;background:#9aa4b2}
+.fdp.info{background:var(--brand)}.fdp.ok{background:var(--ok)}.fdp.warn{background:#D99A00}.fdp.rev{background:#7E57C2}.fdp.gray{background:#9aa4b2}
+.fdc{display:flex;flex-direction:column;gap:2px;min-width:0}
+.fdt{font-size:14px;overflow-wrap:anywhere}
+.fdq2{font-size:12.5px;color:var(--muted);overflow-wrap:anywhere}
+.fdd{font-size:12.5px;color:#4a5563;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.fdmais{text-align:center;margin:4px 0 16px}
+@media (max-width:700px){
+  .fdf label{flex:1 1 45%}
+  .fdf .fdq{flex:1 1 100%}
+  .fdi{grid-template-columns:40px 10px minmax(0,1fr);gap:6px;padding:10px 2px}
+  .fdf select,.fdf input{font-size:16px;min-height:44px}
+}

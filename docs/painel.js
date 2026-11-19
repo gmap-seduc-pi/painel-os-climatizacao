@@ -146,17 +146,6 @@ function stats(L){
 }
 let ch1,ch2;
 Chart.defaults.font.family='Montserrat,"Segoe UI",Arial,sans-serif'; Chart.defaults.color="#5C6670";
-// Visão geral: as O.S. que mudaram por último (emissão, atendimento, correção, cancelamento...), com atalho para a fila
-function renderRecentes(L){
-  const R=L.filter(o=>o.movimentada_em).sort((a,b)=>b.movimentada_em.localeCompare(a.movimentada_em)).slice(0,6);
-  const n7=L.filter(o=>recente(o,7*1440)).length;
-  $("recentes").innerHTML = R.length ? `<div class="fish"><h3>Movimentações recentes</h3><div class="acoes"><button class="btn" id="recVer">Ver as ${nf(n7)} dos últimos 7 dias na fila</button></div></div>
-    <div class="recl">${R.map(o=>`<button type="button" class="reci${recente(o,30)?" rec":""}" data-os="${esc(String(o.id))}"><span class="rech"><b>${esc(o.os)}</b><span class="badge ${STB[o.status]}">${esc(o.status)}</span></span>
-      <span class="recd">${esc(ACAO_TXT(o.movimentacao))}${o.movimentada_por?` · ${esc(o.movimentada_por)}`:""}</span><span class="mun">${esc(tc(o.escola||""))}</span><small>${esc(quando(o.movimentada_em))}</small></button>`).join("")}</div>` : "";
-  $("recentes").hidden=!R.length;
-  $("recentes").querySelectorAll(".reci").forEach(b=>b.onclick=()=>openDet(b.dataset.os,R.map(o=>String(o.id))));
-  if($("recVer")) $("recVer").onclick=()=>{ REC=true; ORD=null; $("fprazo").value=""; $("q").value=""; page=0; marcarOrdem(); setView("fila"); };
-}
 function renderGeral(L){
   L=L.filter(o=>!o.revisao);   // O.S. em revisão pela GMAP saem temporariamente das contagens
   EMI.faixaHoje(L);
@@ -169,7 +158,6 @@ function renderGeral(L){
     {v:pct(s.atNo,s.atBase),l:"Atendidas no prazo",h:`${nf(s.atNo)} de ${nf(s.atBase)} com datas válidas`,c:"ok"},
   ];
   const canFila = true;
-  renderRecentes(L);
   $("kpis").innerHTML=k.map((x,i)=>`<div class="kpi ${x.c||""} ${x.go&&canFila?"click":""}" data-i="${i}"><div class="v">${x.v}</div><div class="l">${x.l}</div><div class="h">${x.h}</div></div>`).join("");
   $("kpis").querySelectorAll(".kpi.click").forEach(el=>el.onclick=()=>{const g=k[+el.dataset.i].go; if(g.status){FV.status=g.status;buildFilters()} $("fprazo").value=g.sp||""; setView("fila")});
 
@@ -471,10 +459,10 @@ document.addEventListener("click",()=>$("mExp").classList.remove("on"));
 $("mExp").querySelectorAll("button[data-x]").forEach(b=>b.onclick=()=>exp(b.dataset.x));
 
 // ---------- navegação ----------
-const VIEWS=["geral","fila","aprov","nova","fisc","med","planilha","aud","emp","modelo","cfg","usr"];
-const SEMFILTRO=["usr","aprov","nova","emp","modelo","planilha","fisc","med","cfg"];
+const VIEWS=["feed","geral","fila","aprov","nova","fisc","med","planilha","aud","emp","modelo","cfg","usr"];
+const SEMFILTRO=["feed","usr","aprov","nova","emp","modelo","planilha","fisc","med","cfg"];
 const GRUPO_CONF=["fisc","med","planilha","aud","emp","modelo","cfg"];
-function setView(v,arg){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); $("tConf").classList.toggle("on",GRUPO_CONF.includes(v)); fecharConf(); VIEWS.forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=$("fTog").hidden=SEMFILTRO.includes(v); page=0; render(arg); window.scrollTo(0,0)}
+function setView(v,arg){view=v; document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t.dataset.v===v)); $("tConf").classList.toggle("on",GRUPO_CONF.includes(v)); fecharConf(); VIEWS.forEach(x=>$("v-"+x).hidden=v!==x); $("filters").hidden=$("fTog").hidden=$("fres").hidden=SEMFILTRO.includes(v); page=0; render(arg); window.scrollTo(0,0)}
 // trocar de aba pergunta antes se houver formulário preenchido (O.S. ou modelo)
 document.querySelectorAll(".tab[data-v]").forEach(t=>t.onclick=async()=>{ const v=t.dataset.v; fecharConf(); if(v===view) return; if(!(await EMI.podeSair(view))) return; if(view==="cfg"&&!(await FIS.podeSairConfig())) return; setView(v); });
 // engrenagem: Planilha, Auditoria, Empresas e Modelo num menu; o número soma os avisos dos itens
@@ -495,7 +483,7 @@ function posicionarIcones(){ const fim=document.querySelector(".tabs-fim"); if(M
 (MQ_CEL.addEventListener?MQ_CEL.addEventListener("change",posicionarIcones):MQ_CEL.addListener(posicionarIcones)); posicionarIcones();
 new MutationObserver(atualizarConf).observe($("mConf"),{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:["hidden"]});
 function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==="aud") renderAud(filtered()); else if(view==="usr") renderUsuarios(CTX);
-  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="med") MED.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
+  else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="med") MED.render(); else if(view==="feed") FEED.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
 // abas por perfil: técnico vê tudo menos Usuários; consultivo (diretoria, fiscais) e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
 // fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
@@ -510,12 +498,17 @@ Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}
 document.querySelector('.tab[data-v="usr"]').innerHTML=UI.icone("usuarios"); atualizarConf();
 if(GMAP) contarPendentes(CTX);
 // recarrega os dados do banco depois de cada ação e redesenha a tela atual
-async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); contarMed(); if(view!=="nova") render(); }
+async function recarregar(){ const novo=await CTX.recarregar(); CTX.rows=novo.rows; Object.assign(CTX,novo); preparar(novo.rows); buildFilters(); EMI.contarAprov(); contarMed(); contarFeed(); if(view==="feed") FEED.render(true); else if(view!=="nova") render(); }
 // Medição: itens do contrato, saldo e cadastro (gerência, técnicos e fiscais; a empresa declara os itens no atendimento)
 const MED = window.iniciarMedicao({CTX, $, esc, fmt, tc, nf, EMPN, todos:()=>ALL, find, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), xlsx, doPrint, ph,
   GMAP, CONSULTIVO, GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null, veEmpresa:()=>true, aviso:(m,t)=>UI.aviso(m,t)});
 function contarMed(){ const t=document.querySelector('.tab[data-v="med"]'), n=MED.contarAlertas(); t.innerHTML="Medição"+(n?`<span class="cnt">${n}</span>`:""); }
 contarMed();
+// Feed: movimentações das O.S., das mais recentes para as mais antigas (a aba vem antes da Visão geral, mas o login abre a Visão geral)
+const FEED = window.iniciarFeed({CTX, $, esc, tc, nf, EMPN, STB, todos:()=>ALL, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), contarFeed:()=>contarFeed(),
+  GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null});
+function contarFeed(){ const t=document.querySelector('.tab[data-v="feed"]'), n=FEED.contar(); t.innerHTML="Feed"+(n?`<span class="cnt" title="O.S. com movimentação nova desde a sua última visita ao Feed">${n>99?"99+":n}</span>`:""); }
+contarFeed();
 const EMI = window.iniciarEmissao({MED, CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
   todos:()=>ALL, solic:()=>SOLIC, find, openDet, closeDet, setView, recarregar, podeSair:()=>EMI.podeSair(view), xlsx, stamp:()=>new Date().toLocaleString("pt-BR"),
   verFila:(filtro)=>{ FV=Object.assign({},filtro||{}); buildFilters(); $("fprazo").value=""; setView("fila"); }});
