@@ -4,6 +4,22 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.7.0] - 2026-11-19
+
+Requer a migração `supabase/migrations/010_tempo_real.sql` (liga o Realtime do Supabase para as O.S. e o histórico).
+
+### Adicionado
+- **Tempo real:** quando outra pessoa muda uma O.S. ou registra algo no histórico, a tela se atualiza sozinha (Feed, Fila, Visão geral, contadores), com um aviso discreto "Atualizado: há novas movimentações".
+  - **economia de dados:** o painel pergunta ao banco só quais movimentações são novas e baixa apenas as O.S. envolvidas, com os itens e a conferência delas (cerca de 1 a 2 KB por atualização, contra cerca de 1,7 MB de uma recarga completa). Recarga completa só quando mais de 50 O.S. mudam de uma vez;
+  - junta várias mudanças em 1,5 s; com uma janela de diálogo aberta, a aba escondida ou a pessoa digitando, espera e atualiza depois (o cursor volta ao mesmo campo);
+  - telas de gestão (Usuários, Configurações, Modelo, Empresas, Planilha, Nova O.S.) não se redesenham sozinhas: só os contadores mudam, para não perder uma escolha ainda não salva;
+  - ao voltar para uma aba que estava escondida, confere o que mudou nesse tempo;
+  - se a O.S. aberta no detalhe mudar, aparece "Esta O.S. foi alterada por ..." com o botão "Ver a versão atual" (o detalhe não muda sozinho no meio da leitura);
+  - as próprias ações não geram atualização repetida;
+  - se a conexão em tempo real cair, o painel faz a mesma consulta mínima a cada 2 minutos (o cabeçalho mostra "atualização automática a cada 2 min");
+  - cada pessoa só recebe o aviso das linhas que já pode ver (as regras de acesso do banco valem também aqui); o painel ouve só inclusões e alterações, nunca exclusões.
+- **Avisos da Medição** explicam o que é cada um e o que fazer, com atalho ("Abrir o contrato", "Ver os itens esgotados") e o botão **Ciente**, que tira o aviso do contador (o de vigência volta nas etapas de 90 e 60 dias). A dica do contador da aba diz quais são os avisos. Novo filtro "Esgotados" no saldo por item.
+
 ## [2.6.1] - 2026-11-18
 
 Só banco: requer a migração `supabase/migrations/009_correcao_configuracoes.sql`. O site não muda.
