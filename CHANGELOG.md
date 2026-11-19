@@ -4,6 +4,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.6.1] - 2026-11-18
+
+Só banco: requer a migração `supabase/migrations/009_correcao_configuracoes.sql`. O site não muda.
+
+### Corrigido
+- **Salvar as Configurações** dava o erro "UPDATE requires a WHERE clause" (proteção do Supabase que exige dizer qual linha muda). Afetava a data dos itens do contrato e também os motivos de glosa e de ressalva e a data da O.S. assinada. As duas funções que salvam foram refeitas com `where id = 1`.
+- Os testes passaram a conferir todas as migrações: nenhum UPDATE ou DELETE sem WHERE.
+
 ## [2.6.0] - 2026-11-18
 
 Só arquivos do site (sem migração).
