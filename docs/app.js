@@ -121,9 +121,15 @@
     iniciar();
   });
   // Sair: tenta encerrar a sessão no servidor e, aconteça o que acontecer, apaga a sessão deste navegador.
+  // Resposta imediata na tela ("Saindo…"); o servidor tem no máximo 1,5 s para responder, e a sessão local é apagada de qualquer jeito.
+  let saindo = false;
   async function sair() {
-    try { await sb.auth.signOut({ scope: "local" }); } catch (e) { /* segue para a limpeza local */ }
+    if (saindo) return; saindo = true;
+    ["bSair", "pSair"].forEach(id => { const b = $(id); if (b) { b.disabled = true; b.setAttribute("aria-busy", "true"); b.textContent = "Saindo…"; } });
+    document.body.classList.add("saindo");
+    try { await Promise.race([sb.auth.signOut({ scope: "local" }), new Promise(r => setTimeout(r, 1500))]); } catch (e) { /* segue para a limpeza local */ }
     try { Object.keys(localStorage).filter(k => k.startsWith("sb-")).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+    try { sb.removeAllChannels && sb.removeAllChannels(); } catch (e) {}
     location.replace(location.pathname);
   }
   $("bSair").onclick = sair;

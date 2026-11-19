@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.5.0">
+<link rel="stylesheet" href="style.css?v=2.6.0">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -82,6 +82,7 @@
   </div>
   <div class="wrap">
     <div class="tabs" id="tabs">
+      <button class="tab" data-v="feed">Feed</button>
       <button class="tab on" data-v="geral"><span class="so-pc">Visão geral</span><span class="so-cel">Geral</span></button>
       <button class="tab" data-v="fila"><span class="so-pc">Fila de O.S.</span><span class="so-cel">Fila</span></button>
       <button class="tab" data-v="aprov" hidden>Aprovações</button>
@@ -103,10 +104,10 @@
     <div class="fres" id="fres"><button type="button" class="btn ftog" id="fTog" aria-expanded="false" aria-controls="filters"><span class="fic" aria-hidden="true"></span>Filtros<span id="fTogN"></span><span class="fseta" aria-hidden="true">▾</span></button><div class="fchipsr" id="fChips"></div></div>
     <div class="filters" id="filters"></div>
 
+    <section id="v-feed" hidden></section>
     <section id="v-geral">
       <div class="hoje" id="hoje"></div>
       <div class="kpis" id="kpis"></div>
-      <div class="card" id="recentes" hidden></div>
       <div class="grid2">
         <div class="card"><h3 id="t1">Carteira em aberto por situação do prazo</h3><div class="d">O.S. emitidas ou em stand by (as em revisão ficam de fora)</div><div class="chartbox"><canvas id="c1"></canvas></div></div>
         <div class="card"><h3>Atendimento dentro do prazo</h3><div class="d">% das O.S. atendidas até o prazo, por prioridade. Atendimentos antes da emissão da O.S. contam como dentro do prazo.</div><div id="mx"></div></div>
@@ -180,13 +181,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=2.5.0"></script>
-<script src="ui.js?v=2.5.0"></script>
-<script src="painel.js?v=2.5.0"></script>
-<script src="usuarios.js?v=2.5.0"></script>
-<script src="emissao.js?v=2.5.0"></script>
-<script src="fiscalizacao.js?v=2.5.0"></script>
-<script src="medicao.js?v=2.5.0"></script>
-<script src="app.js?v=2.5.0"></script>
+<script src="config.js?v=2.6.0"></script>
+<script src="ui.js?v=2.6.0"></script>
+<script src="painel.js?v=2.6.0"></script>
+<script src="usuarios.js?v=2.6.0"></script>
+<script src="emissao.js?v=2.6.0"></script>
+<script src="fiscalizacao.js?v=2.6.0"></script>
+<script src="medicao.js?v=2.6.0"></script>
+<script src="feed.js?v=2.6.0"></script>
+<script src="app.js?v=2.6.0"></script>
 </body>
 </html>

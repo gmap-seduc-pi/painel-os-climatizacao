@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.6.0] - 2026-11-18
+
+Só arquivos do site (sem migração).
+
+### Adicionado
+- Aba **Feed**, antes da Visão geral (ao entrar no sistema, a Visão geral continua sendo a primeira tela):
+  - todas as movimentações das O.S., das mais recentes para as mais antigas, agrupadas por dia (Hoje, Ontem, data), com horário, ação, quem fez, escola e empresa;
+  - filtros próprios: período (hoje, 7, 30 ou 90 dias), tipo (emissão e aprovação, atendimento, stand by/cancelamento/revisão, fiscalização e medição, planilha), empresa e busca;
+  - clicar abre a O.S., com as setas percorrendo as O.S. do feed;
+  - contador na aba com as O.S. que mudaram desde a última visita ao Feed (sem contar o que a própria pessoa fez); as novidades aparecem destacadas como "Novo";
+  - a empresa vê só as movimentações públicas das O.S. dela; a gestão vê também as internas, marcadas.
+
+### Alterado
+- O card "Movimentações recentes" saiu da Visão geral (o conteúdo agora está no Feed). O botão "Recentes" e o selo "Novo" da Fila continuam.
+- **Sair** responde na hora: mostra "Saindo…" e bloqueia a tela; o servidor tem no máximo 1,5 s para confirmar e a sessão do navegador é apagada de qualquer jeito.
+- Nas abas sem os filtros gerais (Fiscalização, Medição, Usuários etc.), a linha "Mostrando todas as O.S." não aparece mais.
+
 ## [2.5.0] - 2026-11-18
 
 Só arquivos do site (sem migração).
