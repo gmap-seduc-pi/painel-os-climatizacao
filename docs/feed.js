@@ -43,6 +43,16 @@ window.iniciarFeed = function (P) {
     if (ST.per === "1") desde.setTime(Date.parse(hojeStr() + "T00:00:00-03:00"));
     const chave = ST.per + "|" + desde.toISOString().slice(0, 13);
     if (!forcar && EVTS && carregado === chave) return;
+    // tempo real: baixa só as movimentações novas (posteriores à última já carregada) e descarta as que saíram do período
+    if (forcar === "novos" && EVTS && carregado.split("|")[0] === ST.per) {
+      const ult = EVTS.reduce((m, e) => Math.max(m, e.id), 0);
+      const { data, error } = await sb.from("os_eventos").select("*").gt("id", ult).order("id").limit(500);
+      if (!error && (data || []).length < 500) {
+        const ini = desde.getTime();
+        EVTS = data.concat(EVTS).filter(e => Date.parse(e.quando) >= ini).sort((a, b) => Date.parse(b.quando) - Date.parse(a.quando) || b.id - a.id);
+        carregado = chave; return;
+      }
+    }
     carregando = true;
     const { data, error } = await sb.from("os_eventos").select("*").gte("quando", desde.toISOString()).order("quando", { ascending: false }).range(0, 2999);
     carregando = false;

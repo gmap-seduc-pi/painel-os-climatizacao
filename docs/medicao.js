@@ -161,17 +161,39 @@ window.iniciarMedicao = function (P) {
     });
   }
   // avisos para o contador: vigência perto do fim e itens esgotados no período atual
+  // avisos da medição: cada um diz o que é, o que fazer e tem um atalho; "Ciente" tira do contador até a próxima etapa
+  const CHAVE_CIENTE = "med_ciente_" + (CTX.uid || "x");
+  const cientes = () => { try { return JSON.parse(localStorage.getItem(CHAVE_CIENTE) || "[]"); } catch (e) { return []; } };
+  const marcarCiente = k => { try { const L = cientes().filter(x => x !== k).concat(k).slice(-200); localStorage.setItem(CHAVE_CIENTE, JSON.stringify(L)); } catch (e) { /* sem armazenamento: o aviso continua no contador */ } };
   function alertas() {
-    const out = [];
+    const out = [], ok = cientes();
     (M().contratos || []).filter(c => c.ativo && P.veEmpresa(c.empresa)).forEach(c => {
-      const ps = periodos(c.id), atual = periodoNa(c.id, hoje), ult = ps[0];
-      if (ult && ult.fim >= hoje) { const d = dias(ult.fim, hoje); if (d <= AVISO_VIG[0]) out.push({ c, tipo: "vig", d, txt: `Vigência do contrato ${c.numero} (${EMPN[c.empresa] || c.empresa}) termina em ${plural(d, "dia", "dias")} (${fmt(ult.fim)})` }); }
-      else if (!atual) out.push({ c, tipo: "semvig", txt: `Contrato ${c.numero} (${EMPN[c.empresa] || c.empresa}) sem período de vigência em ${fmt(hoje)}` });
-      if (atual) { const S = saldos(c.id, atual.id), esg = S.filter(s => s.cont && s.saldo <= 0).length; if (esg) out.push({ c, tipo: "esg", n: esg, txt: `${plural(esg, "item esgotado", "itens esgotados")} no contrato ${c.numero}` }); }
+      const ps = periodos(c.id), atual = periodoNa(c.id, hoje), ult = ps[0], nome = EMPN[c.empresa] || c.empresa;
+      if (ult && ult.fim >= hoje) {
+        const d = dias(ult.fim, hoje);
+        if (d <= AVISO_VIG[0]) {
+          const etapa = AVISO_VIG.filter(x => d <= x).pop();
+          out.push({ c, tipo: "vig", d, grave: d <= AVISO_VIG[2], k: `vig|${c.id}|${ult.fim}|${etapa}`,
+            titulo: `Vigência do contrato ${c.numero} (${nome}) termina em ${plural(d, "dia", "dias")}, em ${fmt(ult.fim)}`,
+            fazer: `Providencie a prorrogação (ou a nova contratação) a tempo: o processo passa por pareceres antes do termo aditivo. Quando o aditivo for assinado, cadastre o novo período em "Contrato ${c.numero}, períodos e histórico", botão "+ Novo período (prorrogação)". O aviso some sozinho quando o novo período estiver cadastrado; volta a aparecer em ${AVISO_VIG.filter(x => x < etapa).map(x => x + " dias").join(" e ") || "nenhuma outra etapa"} antes do fim.`,
+            acao: "Abrir o contrato" });
+        }
+      } else if (!atual) out.push({ c, tipo: "semvig", grave: true, k: `semvig|${c.id}|${ult ? ult.fim : ""}`,
+        titulo: `Contrato ${c.numero} (${nome}) sem período de vigência em ${fmt(hoje)}`,
+        fazer: `Se o contrato foi prorrogado, cadastre o novo período ("+ Novo período (prorrogação)"). Se terminou, desative o contrato em "Editar contrato". Enquanto isso, a empresa não consegue declarar itens.`, acao: "Abrir o contrato" });
+      if (atual) {
+        const S = saldos(c.id, atual.id).filter(s => s.cont && s.saldo <= 0);
+        if (S.length) out.push({ c, tipo: "esg", n: S.length, grave: true, k: `esg|${c.id}|${atual.id}|${S.map(x => x.it.id).join(",")}`,
+          titulo: `${plural(S.length, "item esgotado", "itens esgotados")} no contrato ${c.numero} (${nome}): ${S.slice(0, 3).map(x => codigo(x.it, c.empresa)).join(", ")}${S.length > 3 ? "…" : ""}`,
+          fazer: "O registro continua (a empresa segue declarando), mas o que passar do contratado não tem cobertura no contrato: avalie com a fiscalização se cabe aditivo (o acréscimo tem limite legal de 25% do valor inicial), nova contratação ou pagamento indenizatório. Confira também se o consumo anterior informado está correto.",
+          acao: "Ver os itens esgotados" });
+      }
     });
+    out.forEach(a => a.ciente = ok.includes(a.k));
     return out;
   }
-  const contarAlertas = () => GESTAO ? alertas().length : 0;
+  const contarAlertas = () => GESTAO ? alertas().filter(a => !a.ciente).length : 0;
+  const resumoAlertas = () => alertas().filter(a => !a.ciente).map(a => a.titulo).join("\n");
 
   // ---------- aba Medição ----------
   const ST = { emp: "", per: "", mes: "", ver: "todos" };
@@ -184,7 +206,10 @@ window.iniciarMedicao = function (P) {
     const AL = alertas();
     const topo = `<div class="card"><h3>Medição dos contratos</h3>
       <div class="d">Saldo de cada item no período de vigência (contratado, consumo anterior à implantação, aceito pelo fiscal e declarado a conferir) e o valor medido no mês, pela data do atendimento. Os itens são exigidos nos atendimentos a partir de <b>${fmt(medDesde())}</b>${GMAP ? " (altere em Configurações)" : ""}.</div>
-      ${AL.length ? `<div class="fchips malr">${AL.map(a => `<span class="fchip ${a.tipo === "vig" && a.d > AVISO_VIG[2] ? "" : "on"} ${a.tipo === "esg" || a.tipo === "semvig" || (a.tipo === "vig" && a.d <= AVISO_VIG[2]) ? "bad" : "warn"}">${esc(a.txt)}</span>`).join("")}</div>` : ""}
+      ${AL.length ? `<div class="mavisos"><div class="mavt">${plural(AL.filter(a => !a.ciente).length, "aviso", "avisos")}${AL.some(a => a.ciente) ? ` <span class="mun">(${plural(AL.filter(a => a.ciente).length, "marcado", "marcados")} como ciente)</span>` : ""}</div>${AL.map((a, i) => `<div class="mav ${a.grave ? "bad" : "warn"}${a.ciente ? " ciente" : ""}">
+        <div class="mavh"><b>${esc(a.titulo)}</b>${a.ciente ? ' <span class="badge b-gray">ciente</span>' : ""}</div>
+        <div class="mavf"><b>O que fazer:</b> ${esc(a.fazer)}</div>
+        <div class="acoes"><button class="btn" data-mav="${i}">${esc(a.acao)}</button>${a.ciente ? "" : `<button class="btn" data-mok="${i}" title="Tira do contador; o aviso continua aqui enquanto a situação existir">Ciente</button>`}</div></div>`).join("")}</div>` : ""}
       <div class="fisf"><label>Empresa<select id="mEmp">${opEmp}</select></label><span id="mFilt"></span></div></div>`;
     if (!ST.emp) { $("v-med").innerHTML = topo + `<div class="card"><div class="empty">Nenhum contrato cadastrado para as empresas que você acompanha.</div></div>`; ligarTopo(); return; }
     if (!temContrato(ST.emp) && !contratosDa(ST.emp).length) return renderSemContrato(topo);
@@ -200,7 +225,7 @@ window.iniciarMedicao = function (P) {
       ST.mes = com[com.length - 1] || meses[meses.length - 1] || "todo"; }
     const valCont = S.reduce((s, x) => s + x.cont * (x.pu || 0), 0), valUsado = S.reduce((s, x) => s + x.ant * (x.pu || 0) + x.vac + x.vpend, 0);
     const semInf = S.filter(x => x.cont && !x.inf).length, esg = S.filter(x => x.cont && x.saldo <= 0).length, a80 = S.filter(x => x.cont && x.saldo > 0 && x.pct >= .8).length;
-    const vis = S.filter(x => ST.ver === "todos" || (ST.ver === "serv" && x.it.grupo === "Serviço") || (ST.ver === "pec" && x.it.grupo === "Peça") || (ST.ver === "80" && x.cont && x.pct >= .8) || (ST.ver === "inativos" && !x.it.ativo));
+    const vis = S.filter(x => ST.ver === "todos" || (ST.ver === "serv" && x.it.grupo === "Serviço") || (ST.ver === "pec" && x.it.grupo === "Peça") || (ST.ver === "80" && x.cont && x.pct >= .8) || (ST.ver === "esg" && x.cont && x.saldo <= 0) || (ST.ver === "inativos" && !x.it.ativo));
     // O.S. do mês
     const de = ST.mes === "todo" ? p.inicio : ST.mes + "-01", ate = ST.mes === "todo" ? p.fim : new Date(Date.UTC(+ST.mes.slice(0, 4), +ST.mes.slice(5, 7), 0)).toISOString().slice(0, 10);
     const OSm = P.todos().filter(o => o.emp === c.empresa && o.status === "Atendida" && o.atend && o.atend >= de && o.atend <= ate && o.atend >= p.inicio && o.atend <= p.fim)
@@ -221,7 +246,7 @@ window.iniciarMedicao = function (P) {
       ${semInf ? `<div class="faixa warn"><b>Consumo anterior à implantação não informado em ${plural(semInf, "item", "itens")}.</b> Até ser preenchido (pela GMAP, com o documento SEI dos pagamentos já feitos no período), o saldo aparece maior do que é.</div>` : ""}
       <div class="card"><div class="fish"><h3>Saldo por item (${nf(vis.length)})</h3><div class="acoes"><button class="btn" id="mXlsS">Exportar Excel</button>${pode ? '<button class="btn" id="mNovoItem">+ Novo item</button>' : ""}</div></div>
         <div class="d">Usado = consumo anterior + aceito pelo fiscal + declarado ainda a conferir. O que passar do contratado continua registrado, para eventual pagamento indenizatório.</div>
-        <div class="fchips">${[["todos", "Todos"], ["serv", "Serviços"], ["pec", "Peças"], ["80", "A partir de 80%"]].concat(S.some(x => !x.it.ativo) ? [["inativos", "Desativados"]] : []).map(([k, t]) => `<button type="button" class="fchip ${ST.ver === k ? "on" : ""}" data-mver="${k}">${t}</button>`).join("")}</div>
+        <div class="fchips">${[["todos", "Todos"], ["serv", "Serviços"], ["pec", "Peças"], ["80", "A partir de 80%"]].concat(S.some(x => x.cont && x.saldo <= 0) ? [["esg", "Esgotados"]] : []).concat(S.some(x => !x.it.ativo) ? [["inativos", "Desativados"]] : []).map(([k, t]) => `<button type="button" class="fchip ${ST.ver === k ? "on" : ""}" data-mver="${k}">${t}</button>`).join("")}</div>
         <div class="tbl" style="max-height:none"><table class="mst"><thead><tr><th>Item</th><th class="n">Valor unit.</th><th class="n">Contratado</th><th class="n">Anterior</th><th class="n">Aceito</th><th class="n">A conferir</th><th class="n">Saldo</th><th>Uso</th>${pode ? "<th></th>" : ""}</tr></thead><tbody>${
           vis.map(x => `<tr${x.it.ativo ? "" : ' class="inat"'}><td><b>${esc(codigo(x.it, c.empresa))}</b> ${esc(nomeItem(x.it))}${x.it.ativo ? "" : ' <span class="badge b-gray">desativado</span>'}</td>
             <td class="n">${brl(x.pu)}</td><td class="n">${nf(x.cont)}</td>
@@ -254,7 +279,15 @@ window.iniciarMedicao = function (P) {
     if ($("mXlsM")) $("mXlsM").onclick = () => exportarMes(c, p, rotMes(ST.mes), linhasM);
     if ($("mPrt")) $("mPrt").onclick = () => imprimirMes(c, p, rotMes(ST.mes), linhasM, totDecl, totAc);
   }
-  function ligarTopo() { if ($("mEmp")) $("mEmp").onchange = e => { ST.emp = e.target.value; ST.per = ""; ST.mes = ""; ST.ver = "todos"; render(); }; }
+  function ligarTopo() {
+    if ($("mEmp")) $("mEmp").onchange = e => { ST.emp = e.target.value; ST.per = ""; ST.mes = ""; ST.ver = "todos"; render(); };
+    const AL = alertas();
+    document.querySelectorAll("#v-med [data-mok]").forEach(b => b.onclick = () => { marcarCiente(AL[+b.dataset.mok].k); P.contarMed(); render(); });
+    document.querySelectorAll("#v-med [data-mav]").forEach(b => b.onclick = () => { const a = AL[+b.dataset.mav];
+      ST.emp = a.c.empresa; ST.per = ""; ST.mes = ""; ST.ver = a.tipo === "esg" ? "esg" : "todos"; render();
+      const alvo = a.tipo === "esg" ? document.querySelector("#v-med table.mst") : document.querySelector("#v-med details.fisres");
+      if (alvo) { if (alvo.tagName === "DETAILS") alvo.open = true; alvo.scrollIntoView({ behavior: "smooth", block: "start" }); } });
+  }
 
   function renderSemContrato(topo) {
     const L = P.todos().filter(o => o.emp === ST.emp && o.status === "Atendida").sort((a, b) => (b.atend || "").localeCompare(a.atend || ""));
@@ -369,5 +402,5 @@ window.iniciarMedicao = function (P) {
       <div class="foot">Documento gerado pelo Painel de O.S. de Climatização em ${new Date().toLocaleString("pt-BR")}. Valores pelos preços vigentes na data de cada atendimento.</div></div>`);
   }
 
-  return { campoItens, validarItens, exige, contratoNa, itensOS, valorOS, resumoItens, blocoDetalhe, ligarDetalhe, render, contarAlertas, temContrato, brl, medDesde, nomeItem, codigo };
+  return { campoItens, validarItens, exige, contratoNa, itensOS, valorOS, resumoItens, blocoDetalhe, ligarDetalhe, render, contarAlertas, resumoAlertas, temContrato, brl, medDesde, nomeItem, codigo };
 };

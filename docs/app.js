@@ -62,6 +62,31 @@
              modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias,
              med: { contratos, periodos, itens, precos, qtd, osItens, itensConf, log } };
   }
+  // Atualização parcial (tempo real): baixa só as O.S. indicadas, com os itens e a conferência delas, e junta aos dados atuais.
+  // Uma O.S. que deixou de ser visível para o perfil sai da lista.
+  async function carregarParcial(atual, ids, gestao) {
+    ids = [...new Set(ids.map(String))];
+    const [os, itens, conf] = await Promise.all([
+      sb.from("os").select("*").in("id", ids),
+      sb.from("os_itens").select("*").in("os_id", ids),
+      gestao ? sb.from("os_conferencias").select("*").in("os_id", ids).order("id") : Promise.resolve({ data: [] })
+    ]);
+    const erro = [os, itens, conf].find(r => r.error); if (erro) throw erro.error;
+    const novosItens = itens.data || [];
+    const ic = gestao && novosItens.length ? await sb.from("os_itens_conf").select("*").in("os_item_id", novosItens.map(x => x.id)) : { data: [] };
+    if (ic.error) throw ic.error;
+    const em = new Set(ids), med = atual.med || {};
+    const velhosItens = new Set((med.osItens || []).filter(x => em.has(String(x.os_id))).map(x => x.id));
+    const porId = new Map((os.data || []).map(o => [String(o.id), paraPainel(o)]));
+    const rows = atual.rows.filter(o => !em.has(String(o.id)) || porId.has(String(o.id))).map(o => porId.get(String(o.id)) || o);
+    porId.forEach((o, k) => { if (!atual.rows.some(x => String(x.id) === k)) rows.push(o); });
+    rows.sort((a, b) => a.id - b.id);
+    const conferencias = Object.assign({}, atual.conferencias); ids.forEach(k => { delete conferencias[k]; });
+    (conf.data || []).forEach(c => { conferencias[c.os_id] = c; });
+    return { rows, conferencias, med: Object.assign({}, med, {
+      osItens: (med.osItens || []).filter(x => !em.has(String(x.os_id))).concat(novosItens),
+      itensConf: (med.itensConf || []).filter(k => !velhosItens.has(k.os_item_id)).concat(ic.data || []) }) };
+  }
   async function iniciar() {
     show("carregando");
     const { data: { session } } = await sb.auth.getSession();
@@ -103,9 +128,11 @@
 
       show("app");
       const { data: emps } = await sb.rpc("empresas_disponiveis");
-      iniciarPainel(Object.assign(dados, { perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
+      const ctx = Object.assign(dados, { perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
                       sb, uid: session.user.id, nome: p.nome || p.email, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]),
-                      recarregar: () => carregarDados(equipe, gestao) }));
+                      recarregar: () => carregarDados(equipe, gestao), recarregarParcial: ids => carregarParcial(ctx, ids, gestao) });
+      iniciarPainel(ctx);
+      if (!naPlanilha) ligarTempoReal(ctx);
     } catch (e) {
       show("carregando");
       $("carregando").innerHTML = '<div class="lcard"><b>Não foi possível carregar os dados</b><div class="sub">' + String(e.message || e).replace(/</g, "&lt;") + '</div><button class="btn" onclick="location.reload()">Tentar de novo</button></div>';
@@ -120,6 +147,73 @@
     if (error) { $("lErr").textContent = "E-mail ou senha incorretos."; return; }
     iniciar();
   });
+  // Tempo real: quando outra pessoa muda uma O.S. (ou registra algo no histórico), a tela se atualiza sozinha.
+  // Economia de dados: o aviso do Supabase só diz "algo mudou"; o painel pergunta ao banco quais movimentações são novas
+  // (consulta mínima) e baixa só as O.S. envolvidas, com os itens e a conferência delas. Recarga completa só se muitas
+  // O.S. mudaram de uma vez. Ouve apenas inclusões e alterações (exclusões não passam pelas regras de acesso no Supabase).
+  // Espera 1,5 s para juntar várias mudanças; não atualiza com janela de diálogo aberta, com a aba escondida ou enquanto
+  // a pessoa digita (atualiza assim que ela terminar). Se o canal cair, faz a mesma consulta mínima a cada 2 minutos.
+  const LIMITE_PARCIAL = 50;
+  function ligarTempoReal(ctx) {
+    let t = null, pendente = false, rodando = false, ativo = false, ultimoId = null;
+    const ids = new Set();
+    // digitando = campo de texto ou lista com foco e tecla/escolha nos últimos 4 s (depois disso a tela pode se atualizar;
+    // o painel devolve o foco ao mesmo campo)
+    let ultimaTecla = 0; ["keydown", "input", "change"].forEach(ev => document.addEventListener(ev, () => { ultimaTecla = Date.now(); }, true));
+    const digitando = () => { const a = document.activeElement;
+      return Date.now() - ultimaTecla < 4000 && !!(a && a.closest && a.closest("#app") && a.matches("textarea, select, input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file])")); };
+    const ocupado = () => document.hidden || !!document.querySelector("#dlg.on, #cfm.on, #alr.on") || rodando || digitando();
+    // ignora o eco das próprias ações (a tela já foi atualizada por quem fez)
+    const doMesmo = m => m && m.new && m.new.quem && m.new.quem === ctx.uid;
+    const recente = () => Date.now() - (ctx.recarregadoEm || 0) < 4000;
+    const agendar = m => {
+      if (m && (doMesmo(m) || (m.table === "os" && recente()))) return;
+      if (m && m.table === "os" && m.new && m.new.id != null) ids.add(String(m.new.id));
+      pendente = true; clearTimeout(t); t = setTimeout(executar, 1500);
+    };
+    // número da última movimentação já conhecida (a consulta mínima pede só as posteriores)
+    async function marco() {
+      const { data, error } = await sb.from("os_eventos").select("id").order("id", { ascending: false }).limit(1);
+      if (!error) ultimoId = data && data[0] ? data[0].id : 0;
+    }
+    ctx.marcoTempoReal = marco;
+    async function executar() {
+      if (!pendente) return;
+      if (ocupado()) { clearTimeout(t); t = setTimeout(executar, 2000); return; }
+      pendente = false; rodando = true;
+      try {
+        let tudo = false;
+        if (ultimoId == null) await marco();
+        else {
+          const { data, error } = await sb.from("os_eventos").select("id, os_id, quem").gt("id", ultimoId).order("id").limit(200);
+          if (error) throw error;
+          (data || []).forEach(e => { ultimoId = Math.max(ultimoId, e.id); if (e.quem !== ctx.uid) ids.add(String(e.os_id)); });
+          if ((data || []).length >= 200) tudo = true;
+        }
+        if (ids.size > LIMITE_PARCIAL) tudo = true;
+        if (tudo || ids.size) {
+          const lista = tudo ? null : [...ids]; ids.clear();
+          if (ctx.atualizarTela) await ctx.atualizarTela({ tempoReal: true, ids: lista });
+          if (tudo) await marco();
+        }
+      } catch (e) { pendente = true; /* tenta de novo na próxima mudança ou conferência */ }
+      rodando = false; selo();
+    }
+    function selo() { const r = $("refd"); if (r) r.textContent = r.textContent.replace(/ · (dados em tempo real|atualização automática a cada 2 min)$/, "")
+      + (ativo ? " · dados em tempo real" : " · atualização automática a cada 2 min"); }
+    // ao voltar para a aba: confere o que mudou enquanto ela estava escondida (o canal pode ter caído nesse tempo)
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) agendar(); });
+    marco();
+    try {
+      sb.channel("painel-os")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "os" }, agendar)
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "os" }, agendar)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "os_eventos" }, agendar)
+        .subscribe(st => { ativo = st === "SUBSCRIBED"; selo(); });
+    } catch (e) { ativo = false; }
+    setInterval(() => { if (!ativo && !document.hidden) agendar(); }, 120000);
+  }
+
   // Sair: tenta encerrar a sessão no servidor e, aconteça o que acontecer, apaga a sessão deste navegador.
   // Resposta imediata na tela ("Saindo…"); o servidor tem no máximo 1,5 s para responder, e a sessão local é apagada de qualquer jeito.
   let saindo = false;
