@@ -249,13 +249,19 @@ function renderAud(L){
   $("audg").innerHTML=CHECKS.map(c=>`<div class="ac ${c.c} ${audSel===c.id?"on":""}" data-id="${c.id}"><div class="v">${nf(res[c.id].length)}</div><div class="t">${c.t}</div><div class="x">${c.x}</div></div>`).join("");
   $("audg").querySelectorAll(".ac").forEach(el=>el.onclick=()=>{audSel=el.dataset.id;renderAud(L)});
   // canceladas
-  const can=L.filter(o=>o.status==="Cancelada"), mot={}; can.forEach(o=>{const m=o.motivo||"Não informado";mot[m]=(mot[m]||0)+1});
+  // motivo principal, sem o complemento ("Atraso superior a 60 dias: Atendida depois..." conta como "Atraso superior a 60 dias");
+  // o texto completo continua no detalhe da O.S.
+  const CADM=((CTX.modelo||{}).motivos_cancelamento||[]).map(x=>x.texto).filter(Boolean).sort((a,b)=>b.length-a.length);
+  const motivoBase=o=>{const t=String(o.motivo||"").trim(); if(!t) return "Não informado";
+    const c=CADM.find(m=>t.toLowerCase()===m.toLowerCase()||t.toLowerCase().startsWith(m.toLowerCase()+":")); if(c) return c;
+    const i=t.indexOf(":"); return i>0?t.slice(0,i).trim():t; };
+  const can=L.filter(o=>o.status==="Cancelada"), mot={}; can.forEach(o=>{const m=motivoBase(o);mot[m]=(mot[m]||0)+1});
   const me=Object.entries(mot).sort((a,b)=>b[1]-a[1]);
   $("cand").textContent=`${nf(can.length)} de ${nf(L.length)} O.S. (${pct(can.length,L.length)})`+(mot["Não informado"]?` · ${mot["Não informado"]} sem motivo informado`:"");
   ch3&&ch3.destroy();
   ch3=new Chart($("c3"),{type:"bar",data:{labels:me.map(x=>x[0].length>42?x[0].slice(0,40)+"…":x[0]),datasets:[{label:"O.S.",data:me.map(x=>x[1]),backgroundColor:"#034EA2"}]},
     options:{indexAxis:"y",maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:"#EEF0F3"},ticks:{precision:0}},y:{grid:{display:false},ticks:{callback(v){return quebrarRotulo(this.getLabelForValue(v))}}}}}});
-  const ce=EMPS.map(e=>{const LL=L.filter(o=>o.emp===e),cc=LL.filter(o=>o.status==="Cancelada");const m={};cc.forEach(o=>{const k=o.motivo||"Não informado";m[k]=(m[k]||0)+1});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return [e,LL.length,cc.length,top]}).filter(r=>r[1]);
+  const ce=EMPS.map(e=>{const LL=L.filter(o=>o.emp===e),cc=LL.filter(o=>o.status==="Cancelada");const m={};cc.forEach(o=>{const k=motivoBase(o);m[k]=(m[k]||0)+1});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return [e,LL.length,cc.length,top]}).filter(r=>r[1]);
   $("canemp").innerHTML=`<table><thead><tr><th>Empresa</th><th class="n">Canceladas</th><th class="n">% das emitidas</th><th>Motivo mais frequente</th></tr></thead><tbody>${ce.map(([e,n,c,t])=>`<tr><td>${EMPN[e]}</td><td class="n"><b>${nf(c)}</b></td><td class="n">${pct(c,n)}</td><td>${t?esc(t[0])+` (${t[1]})`:"n/d"}</td></tr>`).join("")}</tbody></table>`;
   // lista
   const c=CHECKS.find(x=>x.id===audSel), rows=res[audSel].slice().sort((a,b)=>(a[0].criada||"").localeCompare(b[0].criada||""));
