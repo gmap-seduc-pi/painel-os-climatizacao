@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.7.1] - 2026-11-22
+
+Só arquivos do site (sem migração).
+
+### Corrigido
+- **O.S. canceladas por motivo** (Auditoria): o gráfico e a coluna "Motivo mais frequente" contam pelo motivo principal, sem o detalhe. Antes, "Atraso superior a 60 dias: Atendida depois na mesma escola..." virava uma barra para cada texto diferente; agora todas entram em "Atraso superior a 60 dias". O texto completo continua no detalhe da O.S.
+
 ## [2.7.0] - 2026-11-19
 
 Requer a migração `supabase/migrations/010_tempo_real.sql` (liga o Realtime do Supabase para as O.S. e o histórico).
