@@ -223,15 +223,23 @@ function backlog(o){
   const at=(byInep[o.inep]||[]).filter(a=>a!==o&&a.status==="Atendida"&&a.atend&&a.atend>=o.criada);
   if(!at.length) return null;
   const cover = o.serv.length && o.serv.every(t=>at.some(a=>a.serv.includes(t)&&(a.splits??0)>=(o.splits??0)));
-  return {tipo:cover?"prov":"parc", ev:"Atendida depois na mesma escola: "+at.slice(0,3).map(evAt).join("; ")+(at.length>3?` e mais ${at.length-3}`:"")};
+  return {tipo:cover?"prov":"parc", ev:"Atendida depois na mesma escola: "+at.slice(0,3).map(evAt).join("; ")+(at.length>3?` e mais ${at.length-3}`:""), sig:sigIds(at)};
 }
+// assinatura da evidência: as O.S. que sustentam a ocorrência (se mudarem, a ocorrência verificada volta a contar)
+function sigIds(L){ return L.map(a=>+a.id).sort((x,y)=>x-y).join(","); }
+// pares de O.S. em aberto na mesma escola com serviço em comum (cada par aparece uma vez)
+function paresDup(L){ const vistos=new Set(), out=[];
+  L.forEach(o=>{ if(!OPEN.includes(o.status)||!o.inep) return;
+    (byInep[o.inep]||[]).forEach(a=>{ if(a===o||!OPEN.includes(a.status)) return; const comum=a.serv.filter(t=>o.serv.includes(t)); if(!comum.length) return;
+      const [x,y]=+o.id<+a.id?[o,a]:[a,o], k=x.id+"-"+y.id; if(vistos.has(k)) return; vistos.add(k);
+      out.push({o:x,par:y,ev:`Serviço em comum: ${comum.map(t=>SERVN[t]||t).join(", ")}`,sig:`${+x.id},${+y.id}|${[...comum].sort().join(",")}`}); }); });
+  return out; }
 const CHECKS = [
   {id:"prov",c:"r",t:"Provável backlog artificial",x:"Em aberto, mas a escola teve atendimento posterior que cobre o serviço e a quantidade",
-   f:o=>{const b=backlog(o);return b&&b.tipo==="prov"?b.ev:null}},
+   f:o=>{const b=backlog(o);return b&&b.tipo==="prov"?b:null}},
   {id:"parc",c:"y",t:"Atendimento parcial posterior",x:"Em aberto; a escola foi atendida depois, mas com outro serviço ou menos splits",
-   f:o=>{const b=backlog(o);return b&&b.tipo==="parc"?b.ev:null}},
-  {id:"dup",c:"y",t:"Possível duplicidade em aberto",x:"Outra O.S. em aberto na mesma escola com o mesmo tipo de serviço",
-   f:o=>{if(!OPEN.includes(o.status)||!o.inep)return null; const d=(byInep[o.inep]||[]).filter(a=>a!==o&&OPEN.includes(a.status)&&a.serv.some(t=>o.serv.includes(t))); return d.length?"Também em aberto: "+d.map(a=>`${a.os} (${EMPN[a.emp]||a.emp}, criada em ${fmt(a.criada)})`).join("; "):null}},
+   f:o=>{const b=backlog(o);return b&&b.tipo==="parc"?b:null}},
+  {id:"dup",c:"y",t:"Possível duplicidade em aberto",x:"Pares de O.S. em aberto na mesma escola com o mesmo tipo de serviço. Clique no par para comparar",pares:true},
   {id:"just",c:"r",t:"Vencida sem justificativa",x:"Em aberto, vencida, sem justificativa da empresa nem motivo de stand by",
    f:o=>o.sp==="Vencida"&&!o.just&&!o.standby_motivo?`Vencida há ${o.atraso} dias sem justificativa`:null},
   {id:"semat",c:"y",t:"Atendida sem data de atendimento",x:"Status Atendida, mas a data não foi preenchida",
@@ -239,15 +247,59 @@ const CHECKS = [
   {id:"inc",c:"y",t:"Cadastro incompleto",x:"Falta data de criação, prazo, prioridade, município ou INEP (canceladas não entram)",
    f:o=>{if(o.status==="Cancelada")return null;const m=[];if(!o.criada)m.push("data de criação");if(!o.prazo)m.push("prazo");if(!o.prio)m.push("prioridade");if(!o.mun)m.push("município");if(!o.inep)m.push("INEP");return m.length?"Sem "+m.join(", "):null}},
   {id:"rep",c:"y",t:"Número de O.S. repetido",x:"O mesmo número em mais de um registro. A O.S. cancelada não entra na lista, mas a ativa com o mesmo número continua aparecendo",
-   f:o=>o.status!=="Cancelada"&&osCount[o.os]>1?"Também usado em: "+ALL.filter(a=>a.os===o.os&&a!==o).map(a=>`${EMPN[a.emp]||a.emp} (${a.status})`).join(", "):null},
+   f:o=>{ if(o.status==="Cancelada"||!(osCount[o.os]>1)) return null; const out=ALL.filter(a=>a.os===o.os&&a!==o);
+     return {ev:"Também usado em: "+out.map(a=>`${EMPN[a.emp]||a.emp} (${a.status})`).join(", "), sig:sigIds(out)}; }},
   {id:"ant",c:"g",t:"Atendidas antes da emissão",x:"Chamados urgentes atendidos antes da O.S., que veio depois para regularizar",
    f:o=>o.sp==="Atendida antes da O.S."?`Atendida em ${fmt(o.atend)}, O.S. criada em ${fmt(o.criada)} (${days(dd(o.criada),dd(o.atend))} dias depois)`:null},
 ];
 let audSel="prov", ch3;
+// ocorrências verificadas pela gerência ("não se confirma"): saem da contagem enquanto a evidência for a mesma
+const VERIF={prov:1,parc:1,dup:1,rep:1};
+let audVer=false; const audAbertos=new Set();
+const verAtivas=()=>(CTX.auditoria||[]).filter(v=>!v.desfeita_em);
+const verDe=(id,e)=>verAtivas().find(v=>v.verificacao===id&&+v.os_id===+e.o.id&&(id==="dup"?+v.par_os_id===+e.par.id:true));
+function ocorrencias(L){
+  const res={}, verif={};
+  CHECKS.forEach(c=>{
+    const ents = c.pares ? paresDup(L) : L.map(o=>{const r=c.f(o); return r?Object.assign({o},typeof r==="string"?{ev:r}:r):null}).filter(Boolean);
+    res[c.id]=[]; verif[c.id]=[];
+    ents.forEach(e=>{ const v=VERIF[c.id]&&verDe(c.id,e); if(v&&v.assinatura===e.sig){ e.v=v; verif[c.id].push(e); } else { if(v) e.voltou=v; res[c.id].push(e); } });
+  });
+  return {res,verif};
+}
+function erroVerif(m){ return /function|schema cache|does not exist|não existe/i.test(m||"") ? "A marcação de ocorrências precisa da migração 011 no Supabase." : m; }
+function desconsiderar(c,e,L){
+  const quem = c.pares ? `as O.S. ${e.o.os} e ${e.par.os}` : `a O.S. ${e.o.os}`;
+  EMI.dialogo({ titulo: c.pares ? "Não é duplicidade" : "Tirar da contagem", botao: "Tirar da contagem",
+    texto: `${esc(c.t)}: ${esc(quem)}. A ocorrência sai da contagem e fica em "Verificadas", com o seu nome e o motivo. Se a evidência mudar (por exemplo, outro atendimento na escola), ela volta a contar.`,
+    campos: [{ id: "motivo", rot: "Por que a ocorrência não se confirma?", tipo: "textarea", obrig: true, min: 10, max: 500, valor: e.voltou ? e.voltou.motivo : "",
+      dica: c.pares ? "Ex.: são ambientes diferentes da escola; a segunda O.S. complementa a primeira." : "Ex.: o atendimento posterior foi em outro bloco da escola." }],
+    enviar: async v => { const { error } = await CTX.sb.rpc("auditoria_desconsiderar", { p_verificacao: c.id, p_os: +e.o.id, p_par: e.par ? +e.par.id : null, p_assinatura: e.sig, p_motivo: v.motivo });
+      if (error) return erroVerif(error.message); await recarregar(); UI.aviso("Ocorrência marcada como verificada.", "ok"); return null; } });
+}
+async function reconsiderar(e){
+  if(!(await UI.confirmar({ titulo: "Voltar a contar?", texto: `A ocorrência volta para a contagem do cartão. A marcação de ${esc(e.v.quem_nome||"")} fica no histórico.`, botao: "Voltar a contar" }))) return;
+  const { error } = await CTX.sb.rpc("auditoria_reconsiderar", { p_id: +e.v.id, p_obs: null });
+  if (error) return UI.alerta({ titulo: "Não foi possível concluir", itens: erroVerif(error.message) });
+  await recarregar(); UI.aviso("A ocorrência voltou a contar.", "ok");
+}
+// comparação lado a lado de um par: campos diferentes em destaque
+const CMP_FORA=new Set(["Escola / entidade","INEP","GRE","Município","Zona","Endereço"]);
+function comparar(x,y){
+  const ra=new Map(osRows(x)), rb=new Map(osRows(y));
+  const labs=[...new Set([...ra.keys(),...rb.keys()])].filter(l=>!CMP_FORA.has(l));
+  const linhas=[["Nº O.S.",x.os,y.os]].concat(labs.map(l=>[l,ra.get(l)??"",rb.get(l)??""]));
+  const nd=v=>v===""||v==null?'<span class="mun">não informado</span>':esc(String(v));
+  const btn=(o,outra)=>`<button type="button" class="btn" data-abrir="${o.id}">Abrir a O.S. ${esc(o.os)}</button>${OPEN.includes(o.status)?`<button type="button" class="btn no" data-canc="${o.id}" data-outra="${outra.id}">Cancelar a ${esc(o.os)} (duplicada)</button>`:""}`;
+  const dif=linhas.filter(([l,a,b])=>String(a)!==String(b)).length;
+  return `<div class="cmp"><div class="cmpesc"><b>${esc(tc(x.escola||""))}</b> · ${esc(tc(x.mun||""))}${x.inep?" · INEP "+esc(x.inep):""} · <span class="txbad">${dif} ${dif===1?"campo diferente":"campos diferentes"}</span> em destaque</div>
+    <div class="cmptw"><table class="cmpt nocard"><thead><tr><th>Campo</th><th>O.S. ${esc(x.os)}</th><th>O.S. ${esc(y.os)}</th></tr></thead><tbody>${linhas.map(([l,a,b])=>`<tr class="${String(a)===String(b)?"ig":"df"}"><th>${esc(l)}</th><td>${nd(a)}</td><td>${nd(b)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="cmpb">${btn(x,y)}${btn(y,x)}<button type="button" class="btn" data-naodup="1">Não é duplicidade</button></div></div>`;
+}
 function renderAud(L){
-  const res={}; CHECKS.forEach(c=>res[c.id]=L.map(o=>[o,c.f(o)]).filter(x=>x[1]));
-  $("audg").innerHTML=CHECKS.map(c=>`<div class="ac ${c.c} ${audSel===c.id?"on":""}" data-id="${c.id}"><div class="v">${nf(res[c.id].length)}</div><div class="t">${c.t}</div><div class="x">${c.x}</div></div>`).join("");
-  $("audg").querySelectorAll(".ac").forEach(el=>el.onclick=()=>{audSel=el.dataset.id;renderAud(L)});
+  const {res,verif}=ocorrencias(L);
+  $("audg").innerHTML=CHECKS.map(c=>`<div class="ac ${c.c} ${audSel===c.id?"on":""}" data-id="${c.id}"><div class="v">${nf(res[c.id].length)}${c.pares?' <small class="acu">pares</small>':""}</div><div class="t">${c.t}</div><div class="x">${c.x}</div>${verif[c.id].length?`<div class="acv">${nf(verif[c.id].length)} ${verif[c.id].length===1?"verificada":"verificadas"} fora da contagem</div>`:""}</div>`).join("");
+  $("audg").querySelectorAll(".ac").forEach(el=>el.onclick=()=>{ if(audSel!==el.dataset.id){ audSel=el.dataset.id; audVer=false; } renderAud(L)});
   // canceladas
   // motivo principal, sem o complemento ("Atraso superior a 60 dias: Atendida depois..." conta como "Atraso superior a 60 dias");
   // o texto completo continua no detalhe da O.S.
@@ -264,12 +316,41 @@ function renderAud(L){
   const ce=EMPS.map(e=>{const LL=L.filter(o=>o.emp===e),cc=LL.filter(o=>o.status==="Cancelada");const m={};cc.forEach(o=>{const k=motivoBase(o);m[k]=(m[k]||0)+1});const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];return [e,LL.length,cc.length,top]}).filter(r=>r[1]);
   $("canemp").innerHTML=`<table><thead><tr><th>Empresa</th><th class="n">Canceladas</th><th class="n">% das emitidas</th><th>Motivo mais frequente</th></tr></thead><tbody>${ce.map(([e,n,c,t])=>`<tr><td>${EMPN[e]}</td><td class="n"><b>${nf(c)}</b></td><td class="n">${pct(c,n)}</td><td>${t?esc(t[0])+` (${t[1]})`:"n/d"}</td></tr>`).join("")}</tbody></table>`;
   // lista
-  const c=CHECKS.find(x=>x.id===audSel), rows=res[audSel].slice().sort((a,b)=>(a[0].criada||"").localeCompare(b[0].criada||""));
-  $("audlist").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap"><div><h3>${c.t} (${nf(rows.length)})</h3><div class="d">${c.x}. Clique na O.S. para ver o detalhe.</div></div><button class="btn" id="audx" ${rows.length?"":"disabled"}>Exportar lista (.xlsx)</button></div>
-   <div class="tbl" style="max-height:60vh">${rows.length?`<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>Evidência</th></tr></thead><tbody>${rows.map(([o,ev])=>`<tr class="r" data-os="${o.id}"><td><b>${esc(o.os)}</b></td><td>${EMPN[o.emp]||esc(o.emp)}</td><td><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td><td>${fmt(o.criada)||"n/d"}</td><td class="ev">${esc(ev)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">Nenhuma ocorrência no filtro atual.</div>`}</div>`;
-  $("audlist").querySelectorAll("tr.r").forEach(tr=>tr.onclick=()=>openDet(tr.dataset.os,[...$("audlist").querySelectorAll("tr.r")].map(x=>x.dataset.os)));
+  const c=CHECKS.find(x=>x.id===audSel), ver=VERIF[c.id]&&audVer, base=(ver?verif:res)[audSel];
+  const rows=base.slice().sort((a,b)=>(a.o.criada||"").localeCompare(b.o.criada||""));
+  const dt=v=>v?new Date(v).toLocaleDateString("pt-BR",{timeZone:"America/Sao_Paulo"}):"";
+  const voltou=e=>e.voltou?`<div class="faixa warn mini">Voltou a contar: a evidência mudou depois da verificação de ${esc(e.voltou.quem_nome||"")} em ${dt(e.voltou.em)} (motivo: ${esc(e.voltou.motivo)}).</div>`:"";
+  const marcado=e=>`<div class="vmot"><b>Não se confirma:</b> ${esc(e.v.motivo)}<div class="mun">${esc(e.v.quem_nome||"")} em ${dt(e.v.em)}</div></div>`;
+  const acaoB=(e,i)=>VERIF[c.id]?(ver?`<button type="button" class="btn" data-vol="${i}">Voltar a contar</button>`:`<button type="button" class="btn" data-nc="${i}">${c.pares?"Não é duplicidade":"Não se confirma"}</button>`):"";
+  const escCel=o=>`<div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div>`;
+  const osCel=o=>`<b>${esc(o.os)}</b><div class="mun">${EMPN[o.emp]||esc(o.emp)} · <span class="badge ${STB[o.status]}">${esc(o.status)}</span></div><div class="mun">criada em ${fmt(o.criada)||"n/d"}</div>`;
+  const tabela = !rows.length ? `<div class="empty">${ver?"Nenhuma ocorrência verificada neste cartão.":"Nenhuma ocorrência no filtro atual."}</div>`
+    : c.pares ? `<table class="audp"><thead><tr><th>O.S.</th><th>Outra O.S.</th><th>Escola</th><th>${ver?"Verificação":"Serviço em comum"}</th>${VERIF[c.id]?"<th></th>":""}</tr></thead><tbody>${rows.map((e,i)=>{ const k=e.o.id+"-"+e.par.id, ab=audAbertos.has(k);
+        return `<tr class="r par${ab?" on":""}" data-i="${i}" data-k="${k}" title="Clique para comparar"><td>${osCel(e.o)}</td><td>${osCel(e.par)}</td><td>${escCel(e.o)}</td><td class="ev">${ver?marcado(e):esc(e.ev)}${voltou(e)}<div><button type="button" class="lnk" data-cmp="${i}">${ab?"Fechar a comparação":"Comparar lado a lado"}</button></div></td>${VERIF[c.id]?`<td>${acaoB(e,i)}</td>`:""}</tr>${ab?`<tr class="cmpr"><td colspan="5">${comparar(e.o,e.par)}</td></tr>`:""}`; }).join("")}</tbody></table>`
+    : `<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>${ver?"Verificação":"Evidência"}</th>${VERIF[c.id]?"<th></th>":""}</tr></thead><tbody>${rows.map((e,i)=>`<tr class="r" data-os="${e.o.id}" data-i="${i}"><td><b>${esc(e.o.os)}</b></td><td>${EMPN[e.o.emp]||esc(e.o.emp)}</td><td>${escCel(e.o)}</td><td><span class="badge ${STB[e.o.status]}">${esc(e.o.status)}</span></td><td>${fmt(e.o.criada)||"n/d"}</td><td class="ev">${ver?marcado(e)+`<div class="mun">${esc(e.ev)}</div>`:esc(e.ev)}${voltou(e)}</td>${VERIF[c.id]?`<td>${acaoB(e,i)}</td>`:""}</tr>`).join("")}</tbody></table>`;
+  $("audlist").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap"><div><h3>${c.t} (${nf(rows.length)}${ver?" verificadas":""})</h3><div class="d">${c.x}${c.pares?"":". Clique na O.S. para ver o detalhe"}.${VERIF[c.id]&&!ver?' Se a ocorrência não se confirmar, use "'+(c.pares?"Não é duplicidade":"Não se confirma")+'": ela sai da contagem e volta se a evidência mudar.':""}</div></div>
+    <div class="acoes">${VERIF[c.id]?`<div class="audseg" role="group" aria-label="Ocorrências"><button type="button" class="btn${ver?"":" on"}" id="audAt" aria-pressed="${!ver}">Na contagem (${nf(res[audSel].length)})</button><button type="button" class="btn${ver?" on":""}" id="audVf" aria-pressed="${ver}">Verificadas (${nf(verif[audSel].length)})</button></div>`:""}<button class="btn" id="audx" ${rows.length?"":"disabled"}>Exportar lista (.xlsx)</button></div></div>
+   <div class="tbl" style="max-height:${c.pares?"none":"60vh"}">${tabela}</div>`;
+  if($("audAt")){ $("audAt").onclick=()=>{audVer=false;renderAud(L)}; $("audVf").onclick=()=>{audVer=true;renderAud(L)}; }
+  const lista=$("audlist");
+  if(c.pares){
+    const alternar=i=>{ const e=rows[+i], k=e.o.id+"-"+e.par.id; audAbertos.has(k)?audAbertos.delete(k):audAbertos.add(k); renderAud(L); };
+    lista.querySelectorAll("tr.par").forEach(tr=>tr.onclick=ev=>{ if(ev.target.closest("button")) return; alternar(tr.dataset.i); });
+    lista.querySelectorAll("[data-cmp]").forEach(b=>b.onclick=()=>alternar(b.dataset.cmp));
+    lista.querySelectorAll("tr.cmpr").forEach(tr=>{ const e=rows[+tr.previousElementSibling.dataset.i];
+      tr.querySelectorAll("[data-abrir]").forEach(b=>b.onclick=()=>openDet(b.dataset.abrir,[String(e.o.id),String(e.par.id)]));
+      tr.querySelectorAll("[data-canc]").forEach(b=>b.onclick=()=>EMI.cancelarDuplicada(find(b.dataset.canc),find(b.dataset.outra)));
+      const nd=tr.querySelector("[data-naodup]"); if(nd){ if(ver) nd.remove(); else nd.onclick=()=>desconsiderar(c,e,L); } });
+  } else lista.querySelectorAll("tr.r").forEach(tr=>tr.onclick=ev=>{ if(ev.target.closest("button")) return; openDet(tr.dataset.os,[...lista.querySelectorAll("tr.r")].map(x=>x.dataset.os)); });
+  lista.querySelectorAll("[data-nc]").forEach(b=>b.onclick=()=>desconsiderar(c,rows[+b.dataset.nc],L));
+  lista.querySelectorAll("[data-vol]").forEach(b=>b.onclick=()=>reconsiderar(rows[+b.dataset.vol]));
   EMI.audEntidades(L);
-  const bx=$("audx"); if(bx) bx.onclick=()=>xlsx("Auditoria_"+audSel+".xlsx",[["Auditoria",[["Auditoria dos dados · "+c.t],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[],["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Escola","INEP","Município","Serviço","Splits","Evidência"]].concat(rows.map(([o,ev])=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??"",ev]))]]);
+  const lin=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??""];
+  const cab=["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Escola","INEP","Município","Serviço","Splits"];
+  const extra=e=>[e.ev].concat(ver?[e.v.motivo,e.v.quem_nome||"",dt(e.v.em)]:[e.voltou?"Voltou a contar (evidência mudou)":""]);
+  const cabX=["Evidência"].concat(ver?["Motivo (não se confirma)","Verificada por","Em"]:["Observação"]);
+  const bx=$("audx"); if(bx) bx.onclick=()=>xlsx("Auditoria_"+audSel+(ver?"_verificadas":"")+".xlsx",[["Auditoria",[["Auditoria dos dados · "+c.t+(ver?" (verificadas, fora da contagem)":"")],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[],
+    c.pares?cab.map(x=>"O.S. 1 · "+x).concat(cab.map(x=>"O.S. 2 · "+x)).concat(cabX):cab.concat(cabX)].concat(rows.map(e=>c.pares?lin(e.o).concat(lin(e.par)).concat(extra(e)):lin(e.o).concat(extra(e))))]]);
 }
 
 // ---------- fila ----------
@@ -499,7 +580,7 @@ const CONSULTIVO = perfil==="dir";
 // Fiscalização: aba principal para o Consultivo (fiscais, diretoria); para a equipe fica no menu da engrenagem
 if(!CONSULTIVO){ $("mConf").insertBefore(document.querySelector('.tab[data-v="fisc"]'), document.querySelector('#mConf .tab[data-v="aud"]'));
   $("mConf").insertBefore(document.querySelector('.tab[data-v="med"]'), document.querySelector('#mConf .tab[data-v="aud"]')); }
-const ABAS = {fisc:EQUIPE||CONSULTIVO, med:EQUIPE||CONSULTIVO, cfg:GMAP, aud:EQUIPE, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
+const ABAS = {fisc:EQUIPE||CONSULTIVO, med:EQUIPE||CONSULTIVO, cfg:GMAP, aud:GMAP, usr:GMAP, aprov:EQUIPE&&EMISSAO, nova:EQUIPE&&EMISSAO, planilha:GMAP&&OBSERVANDO, emp:EQUIPE, modelo:GMAP};
 Object.entries(ABAS).forEach(([v,ok])=>document.querySelector(`.tab[data-v="${v}"]`).hidden=!ok);
 document.querySelector('.tab[data-v="usr"]').innerHTML=UI.icone("usuarios"); atualizarConf();
 if(GMAP) contarPendentes(CTX);

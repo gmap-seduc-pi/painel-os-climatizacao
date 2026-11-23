@@ -987,5 +987,22 @@ window.iniciarEmissao = function (P) {
   }
 
   marcarAbaNova();
-  return { renderPlanilha, renderModelo, podeSair, faixaHoje, contarAprov, renderNova, renderAprov, renderEmpresas, faixaDetalhe, botoesDetalhe, ligarDetalhe, historico, audEntidades };
+  // Auditoria: cancelar a O.S. duplicada, com o motivo e o detalhe já preenchidos (a pessoa pode mudar antes de confirmar).
+  // Usa a mesma função do banco do cancelamento comum; continua na Auditoria depois de cancelar.
+  function cancelarDuplicada(o, outra) {
+    if (!o || !outra) return;
+    const ops = ativos(MOD().motivos_cancelamento).concat(["Outro motivo"]);
+    const dup = ops.find(m => /duplicad/i.test(m)) || "Outro motivo";
+    return dialogo({ titulo: `Cancelar a O.S. ${o.os}`, perigo: true, botao: "Cancelar O.S.",
+      texto: `Duplicada da O.S. ${esc(outra.os)}, que continua em aberto. O cancelamento não pode ser desfeito. A empresa é avisada por e-mail.`,
+      campos: [{ id: "motivo", rot: "Motivo", tipo: "select", opcoes: ops, obrig: true, valor: dup },
+        { id: "texto", rot: "Detalhe", tipo: "textarea", valor: `Duplicada da O.S. ${outra.os} (${EMPN[outra.emp] || outra.emp}, criada em ${fmt(outra.criada)})`, dica: "Obrigatório quando o motivo for \"Outro motivo\"." }],
+      enviar: async v => {
+        if (v.motivo === "Outro motivo" && (v.texto || "").length < 10) return "Descreva o motivo (mínimo de 10 caracteres).";
+        const r = await rpc("os_cancelar", { p_id: o.id, p_motivo: v.motivo, p_texto: v.texto });
+        if (r.erro) return r.erro;
+        await P.recarregar(); aviso(`O.S. ${o.os} cancelada.`, "ok"); return null;
+      } });
+  }
+  return { dialogo, cancelarDuplicada, renderPlanilha, renderModelo, podeSair, faixaHoje, contarAprov, renderNova, renderAprov, renderEmpresas, faixaDetalhe, botoesDetalhe, ligarDetalhe, historico, audEntidades };
 };

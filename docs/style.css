@@ -583,3 +583,41 @@ body.saindo .wrap,body.saindo .top{opacity:.55;pointer-events:none;transition:op
 .mavh{font-size:14px;margin-bottom:4px}
 .mavf{font-size:13px;color:#3d4652;margin-bottom:8px}
 #detMudou{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+/* 2.8.0 · Auditoria: ocorrências verificadas e comparação de pares */
+.ac .acu{font-size:12px;font-weight:600;color:var(--muted)}
+.ac .acv{font-size:11.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:5px;margin-top:2px}
+.txbad{color:var(--bad)}
+.audseg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.audseg .btn{border:0;border-radius:0;margin:0}
+.audseg .btn.on{background:var(--soft);color:var(--brand);font-weight:700}
+.faixa.mini{padding:5px 8px;margin:6px 0 0;font-size:12px}
+.vmot{font-size:12.5px;color:var(--ink)}
+#audlist td .btn{white-space:nowrap}
+tr.par{cursor:pointer}
+tr.par.on>td{background:var(--soft)}
+tr.cmpr>td{background:var(--soft);padding:0 10px 14px}
+.cmp{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.cmpesc{font-size:13px;margin-bottom:8px}
+.cmptw{overflow-x:auto}
+.cmpt{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.cmpt th,.cmpt td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+.cmpt thead th{background:var(--graybg);font-weight:700}
+.cmpt tbody th{width:24%;color:var(--muted);font-weight:600}
+.cmpt tr.df td{background:var(--warnbg);font-weight:600}
+.cmpt tr.df th{color:var(--ink)}
+.cmpb{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+@media (max-width:700px){
+  .audp tr.cmpr{padding:0;border:0;background:none}
+  .cmp{padding:10px 8px}
+  .cmpt{font-size:12.5px}.cmpt th,.cmpt td{padding:5px 4px}
+  .cmpt tbody th{width:28%}
+  .cmpb .btn{flex:1 1 100%}
+  /* a comparação fica dentro de uma tabela que vira cartões: ela continua sendo tabela de 3 colunas */
+  table.tcard table.cmpt{display:table;width:100%}
+  table.tcard table.cmpt thead{display:table-header-group}
+  table.tcard table.cmpt tbody{display:table-row-group}
+  table.tcard table.cmpt tr{display:table-row;border:0;border-radius:0;margin:0;padding:0;background:none}
+  table.tcard table.cmpt th,table.tcard table.cmpt td{display:table-cell;width:auto;padding:5px 4px;border-bottom:1px solid var(--line)!important;min-height:0}
+  table.tcard table.cmpt tbody th{width:28%}
+  table.tcard table.cmpt tr.df td{background:var(--warnbg)}
+}

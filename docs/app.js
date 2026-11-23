@@ -36,7 +36,7 @@
     escola: o.escola || o.entidade, mun: o.municipio, end: o.endereco, sei: o.id_sei, obs: o.observacoes, just: o.justificativa,
     motivo: o.motivo_cancelamento, pend: o.pendencias, pdf: o.pdf_nome, revisao: !!o.revisao
   });
-  async function carregarDados(equipe, gestao) {
+  async function carregarDados(equipe, gestao, gerencia) {
     const [linhas, ents, emps, muds, modelo, contatos, cfg, pend, conf] = await Promise.all([
       carregarTudo("os", "*"),
       carregarTudo("entidades", "*"),
@@ -56,10 +56,12 @@
       gestao ? sb.from("os_itens_conf").select("*").range(0, 49999).then(r => r.data || []) : Promise.resolve([]),
       gestao ? sb.from("contratos_log").select("*").order("id", { ascending: false }).limit(300).then(r => r.data || []) : Promise.resolve([])
     ]);
+    // auditoria: ocorrências verificadas pela gerência (sem a migração 011, a lista fica vazia e nada quebra)
+    const auditoria = gerencia ? await carregarTudo("auditoria_verificacoes", "*").catch(() => []) : [];
     // conferência atual de cada O.S. = a última registrada
     const conferencias = {}; conf.forEach(c => { conferencias[c.os_id] = c; });
     return { rows: linhas.map(paraPainel), entidades: ents, empresasCad: emps.data || [], mudancas: muds.data || [],
-             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias,
+             modelo: (modelo.data || [])[0] || null, contatos: contatos.data || [], config: (cfg.data || [])[0] || { planilha_ativa: false }, pendencias: pend.data || [], conferencias, auditoria,
              med: { contratos, periodos, itens, precos, qtd, osItens, itensConf, log } };
   }
   // Atualização parcial (tempo real): baixa só as O.S. indicadas, com os itens e a conferência delas, e junta aos dados atuais.
@@ -113,7 +115,7 @@
     try {
       const equipe = p.perfil === "gmap" || p.perfil === "tecnico", gestao = equipe || p.perfil === "consultivo";
       const [dados, sinc] = await Promise.all([
-        carregarDados(equipe, gestao),
+        carregarDados(equipe, gestao, p.perfil === "gmap"),
         sb.from("sincronizacoes").select("executada_em").order("id", { ascending: false }).limit(1)
       ]);
       sb.from("acessos").insert({ agente: navigator.userAgent.slice(0, 200) }).then(() => {});
@@ -130,7 +132,7 @@
       const { data: emps } = await sb.rpc("empresas_disponiveis");
       const ctx = Object.assign(dados, { perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
                       sb, uid: session.user.id, nome: p.nome || p.email, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]),
-                      recarregar: () => carregarDados(equipe, gestao), recarregarParcial: ids => carregarParcial(ctx, ids, gestao) });
+                      recarregar: () => carregarDados(equipe, gestao, p.perfil === "gmap"), recarregarParcial: ids => carregarParcial(ctx, ids, gestao) });
       iniciarPainel(ctx);
       if (!naPlanilha) ligarTempoReal(ctx);
     } catch (e) {
