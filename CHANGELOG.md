@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.8.0] - 2026-11-22
+
+Requer a migração `supabase/migrations/011_auditoria_verificacoes.sql` (depois da 010).
+
+### Adicionado
+- **Auditoria: ocorrência que não se confirma.** Nos cartões Provável backlog artificial, Atendimento parcial posterior, Possível duplicidade em aberto e Número de O.S. repetido, a gerência pode tirar uma ocorrência da contagem com o botão "Não se confirma" (na duplicidade, "Não é duplicidade"):
+  - o motivo é obrigatório (10 a 500 caracteres) e fica registrado com o nome e a data;
+  - as ocorrências tiradas ficam em "Verificadas", com o botão "Voltar a contar"; o cartão mostra quantas estão fora da contagem;
+  - se a evidência mudar (por exemplo, outro atendimento na mesma escola), a ocorrência volta a contar sozinha, com o aviso e o motivo anterior já preenchido para nova conferência;
+  - desfazer não apaga: o histórico fica no banco.
+- **Duplicidade lado a lado:** cada par de O.S. aparece uma vez; clicar no par abre a comparação campo a campo (empresa, status, datas, prazo, origem, SEI, serviço, splits, ambientes, motivos e o restante do cadastro), com as diferenças em destaque e a escola no topo. Dali mesmo: abrir cada O.S., "Não é duplicidade" ou cancelar a duplicada com o motivo "Demanda duplicada" e o detalhe "Duplicada da O.S. nº ..." já preenchidos (pede confirmação e avisa a empresa por e-mail, como o cancelamento comum).
+- Exportação da Auditoria inclui as verificadas (com motivo, quem e quando) e, na duplicidade, as duas O.S. de cada par.
+
+### Alterado
+- **Possível duplicidade em aberto** passa a contar **pares** de O.S. (antes contava cada O.S. do par, então um par valia 2).
+- A aba **Auditoria dos dados** fica só para a gerência (os técnicos deixam de vê-la).
+
 ## [2.7.1] - 2026-11-22
 
 Só arquivos do site (sem migração).

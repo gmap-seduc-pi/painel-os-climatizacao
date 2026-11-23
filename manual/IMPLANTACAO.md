@@ -123,13 +123,13 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
 
 Para mudar a janela de "a vencer", altere `AVENCER` no início de `docs/painel.js`.
 
-### Auditoria dos dados (menu da engrenagem)
+### Auditoria dos dados (menu da engrenagem, só a gerência)
 
 | Cartão | Critério |
 |---|---|
 | Provável backlog artificial | O.S. em aberto cuja escola (INEP) teve atendimento posterior que cobre todos os tipos de serviço pedidos, com quantidade de splits igual ou maior |
 | Atendimento parcial posterior | Mesma situação, mas com outro serviço ou menos splits |
-| Possível duplicidade em aberto | Outra O.S. em aberto na mesma escola com tipo de serviço em comum |
+| Possível duplicidade em aberto | Pares de O.S. em aberto na mesma escola com tipo de serviço em comum (conta pares; clique no par para comparar lado a lado) |
 | Vencida ou com problema sem justificativa | Coluna de justificativa da empresa vazia |
 | Atendida sem data de atendimento | Status Atendida com a data em branco |
 | Cadastro incompleto | Falta data de criação, prazo, prioridade, município ou INEP |
@@ -163,6 +163,9 @@ A planilha não identifica o aparelho (tombamento ou número de série). Por iss
 - Estrutura do banco: nunca edite uma migração já aplicada. Crie um arquivo novo em `supabase/migrations/` com o próximo número (ex.: `002_nova_coluna.sql`), aplique no SQL Editor e registre no `CHANGELOG.md`.
 
 ## 10. Versão 2.0.0: emissão de O.S. no sistema
+
+
+**Ocorrência que não se confirma** (migração 011): nos cartões Provável backlog, Atendimento parcial, Possível duplicidade e Número repetido, a gerência usa "Não se confirma" (ou "Não é duplicidade") com motivo obrigatório. A ocorrência sai da contagem e fica em "Verificadas"; volta a contar sozinha se a evidência mudar (outro atendimento na escola, por exemplo) ou pelo botão "Voltar a contar". Tudo fica registrado com nome e data.
 
 ### Peças novas
 
