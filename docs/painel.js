@@ -509,6 +509,11 @@ function doPrint(html){$("print").innerHTML=html; setTimeout(()=>window.print(),
 function printOS(list){
   doPrint(list.map(o=>`<div class="pg os">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>${o.revisao?'<div class="foot"><b>Em revisão pela GMAP: confirme os dados antes de executar.</b></div>':""}
    <table>${osRows(o).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
+   <div class="osat"><div class="osat-t">Atendimento (preenchimento pela empresa)</div>
+     <div class="osln"><span>Data do atendimento:</span><i class="osc">____/____/________</i></div>
+     <div class="osln"><span>Acompanhado na unidade por:</span><i class="osl"></i><span>Telefone:</span><i class="osl curto"></i></div>
+     <div class="osln"><span>Nº de patrimônio dos aparelhos atendidos:</span><i class="osl"></i></div><div class="osln"><i class="osl"></i></div></div>
+   <div class="osan"><div class="osat-t">Serviços executados e peças trocadas</div><div class="osan-d">Anote o que foi feito em cada aparelho (serviço, potência em BTU, peças trocadas e observações). Estas anotações servem de base para a confirmação do atendimento no sistema.</div><div class="osan-l">${"<i></i>".repeat(40)}</div></div>
    <div class="sig"><div>Responsável técnico da empresa</div><div>Responsável pela unidade escolar</div></div>
    <div class="foot">Documento gerado pelo Painel de O.S. de Climatização. Situação em ${fmt(REF)}.</div></div>`).join(""));
 }
