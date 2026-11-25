@@ -4,6 +4,23 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.10.0] - 2026-11-25
+
+Requer a migração `supabase/migrations/013_planilha_so_mudancas_da_planilha.sql` (depois da 012).
+
+### Corrigido
+- **Aba Planilha avisava mudanças feitas no sistema.** A leitura comparava a planilha com o estado atual do sistema; como a planilha parou na virada, todo atendimento, prazo ou cancelamento registrado no sistema aparecia como "mudança na planilha". Agora o banco guarda a última leitura de cada linha da planilha e só avisa quando **a planilha** muda, e só nos campos em que o valor novo dela é diferente do sistema.
+  - a primeira leitura depois da atualização só registra a planilha como está (nenhum aviso);
+  - as pendências de mudança abertas até agora foram encerradas como alarme falso, com registro em "Já tratados" (decisão da gerência);
+  - as O.S. novas lançadas na planilha continuam como antes;
+  - cada aviso mostra o valor que a planilha tinha, o novo e o do sistema.
+
+### Alterado
+- Aba Planilha: "Abrir a O.S.", "Aplicar no sistema" e "Manter o sistema" viraram ícones, com o texto ao passar o cursor (e embaixo do ícone em telas de toque).
+
+### Adicionado
+- **O.S. impressa** com espaço para a empresa preencher no atendimento: data do atendimento, quem acompanhou na unidade e telefone, números de patrimônio dos aparelhos atendidos e um quadro **"Serviços executados e peças trocadas"** com linhas, ocupando o restante da página, para o colaborador anotar o que foi feito em cada aparelho e servir de base para a confirmação no sistema. A O.S. completa continua cabendo numa folha A4.
+
 ## [2.9.1] - 2026-11-25
 
 Requer a migração `supabase/migrations/012_feed_visitas.sql` (depois da 011).
