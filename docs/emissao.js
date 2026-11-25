@@ -568,9 +568,9 @@ window.iniciarEmissao = function (P) {
     const pm = GMAP && pendDaOS(o);
     const pc = GMAP && o.status === "Cancelada" && pendTodas().find(x => x.tipo === "mudanca" && String(x.os_id) === String(o.id));
     if (pc) f.push(`<div class="faixa info plan"><b>A planilha tem dados diferentes desta O.S. cancelada</b> (detectado ${ha(pc.atualizado_em)}). Só para consulta: a O.S. cancelada não muda.
-      ${(pc.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</div>`);
+      ${(pc.diferencas || []).map(difTxt).join("")}</div>`);
     if (pm) f.push(`<div class="faixa warn plan"><b>A planilha está diferente do sistema</b> (detectado ${ha(pm.atualizado_em)}):
-      ${(pm.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}
+      ${(pm.diferencas || []).map(difTxt).join("")}
       <div class="solb"><button type="button" class="btn pri" data-acao="plan-aplicar">Aplicar no sistema</button><button type="button" class="btn" data-acao="plan-manter">Manter o sistema</button></div></div>`);
     if (soPlanilha(o)) f.push(`<div class="faixa info"><b>O.S. da planilha geral.</b> Até a virada para o sistema, ela continua sendo atualizada pela planilha e fica só para consulta aqui.</div>`);
     else if (o.legado) f.push(`<div class="mun">Importada da planilha geral.</div>`);
@@ -938,6 +938,12 @@ window.iniciarEmissao = function (P) {
   }
   const podeSair = v => v === "nova" ? sairDaNova() : v === "modelo" ? sairDoModelo() : Promise.resolve(true);
 
+  // uma diferença da planilha: o que estava na planilha, o que ela diz agora e o que o sistema tem
+  // (avisos antigos, de antes da 2.10, não têm o valor anterior)
+  const difTxt = d => "anterior" in d
+    ? `<div><b>${esc(d.campo)}:</b> na planilha ${esc(d.anterior || "vazio")} → <span class="novo">${esc(d.planilha || "vazio")}</span> <span class="mun">(no sistema: ${esc(d.sistema || "vazio")})</span></div>`
+    : `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`;
+  const ibA = (a, ic, t, c) => UI.botaoIcone(ic, t, c).replace(`data-acao="${ic}"`, `data-a="${a}"`);
   // ---------- aba Planilha: lançamentos feitos na planilha depois da virada ----------
   function renderPlanilha() {
     const L = CTX.pendencias || [], novas = L.filter(x => x.tipo === "nova" && x.situacao === "aberta"), muds = pendAbertas().filter(x => x.tipo === "mudanca"), mudsC = pendCanceladas();
@@ -954,21 +960,21 @@ window.iniciarEmissao = function (P) {
             <span><small>Criada / prazo</small>${fmt(d.criada_em) || "?"} · ${fmt(d.prazo) || "?"}</span><span><small>Status na planilha</small>${esc(d.status_planilha || d.status || "")}</span></div>
           ${d.observacoes ? `<div class="soltx">${esc(d.observacoes)}</div>` : ""}
           <div class="solb"><button class="btn pri" data-a="importar">Importar</button><button class="btn no" data-a="descartar">Descartar</button></div></div>`; }).join("") : '<div class="empty">Nenhuma O.S. nova na planilha.</div>'}</div>
-      <div class="card"><h3>Mudanças feitas na planilha em O.S. do sistema (${muds.length})</h3><div class="d">Diferenças entre a planilha e o sistema. Nada muda sozinho: aplique no sistema os campos que estiverem certos na planilha ou mantenha o sistema, justificando. As mesmas ações aparecem dentro da O.S.</div>
+      <div class="card"><h3>Mudanças feitas na planilha em O.S. do sistema (${muds.length})</h3><div class="d">Campos que alguém mudou na planilha depois da última leitura e que ficaram diferentes do sistema. O que muda só no sistema não aparece aqui. Nada muda sozinho: aplique no sistema os campos que estiverem certos na planilha ou mantenha o sistema, justificando. As mesmas ações aparecem dentro da O.S.</div>
         ${muds.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que mudou</th><th></th></tr></thead><tbody>${muds.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">
           <td><b>${esc(p.numero)}</b><div class="mun">${ha(p.atualizado_em)}</div></td><td>${esc(EMPN[p.empresa] || p.empresa)}</td>
-          <td class="ev">${(p.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</td>
-          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button><button class="btn pri" data-a="aplicar">Aplicar no sistema</button><button class="btn" data-a="manter">Manter o sistema</button></div></td></tr>`).join("")}</tbody></table></div>`
-          : '<div class="empty">Nenhuma diferença entre a planilha e o sistema.</div>'}</div>
+          <td class="ev">${(p.diferencas || []).map(difTxt).join("")}</td>
+          <td><div class="acoes pacoes">${ibA("abrir", "abrir", "Abrir a O.S.")}${ibA("aplicar", "aplicar", "Aplicar no sistema", "pri")}${ibA("manter", "manter", "Manter o sistema")}</div></td></tr>`).join("")}</tbody></table></div>`
+          : '<div class="empty">Nenhuma mudança nova na planilha.</div>'}</div>
       ${mudsC.length ? `<div class="card"><h3>Lançamentos da planilha em O.S. canceladas (${mudsC.length})</h3><div class="d">Só para consulta, fora das contagens. A O.S. cancelada não muda; se a empresa informou atendimento numa O.S. cancelada, ela não pode ser paga por ela.</div>
         <div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que a planilha diz</th><th></th></tr></thead><tbody>${mudsC.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">
           <td><b>${esc(p.numero)}</b> <span class="badge b-gray">Cancelada</span><div class="mun">${ha(p.atualizado_em)}</div></td><td>${esc(EMPN[p.empresa] || p.empresa)}</td>
-          <td class="ev">${(p.diferencas || []).map(d => `<div><b>${esc(d.campo)}:</b> no sistema ${esc(d.sistema || "vazio")} → na planilha <span class="novo">${esc(d.planilha || "vazio")}</span></div>`).join("")}</td>
-          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button></div></td></tr>`).join("")}</tbody></table></div></div>` : ""}
+          <td class="ev">${(p.diferencas || []).map(difTxt).join("")}</td>
+          <td><div class="acoes pacoes">${ibA("abrir", "abrir", "Abrir a O.S.")}</div></td></tr>`).join("")}</tbody></table></div></div>` : ""}
       ${(() => { const sc = semComprovante(); return `<div class="card"><h3>Atendidas pela planilha sem a O.S. assinada (${sc.length})</h3><div class="d">Ao aplicar "Atendida" vinda da planilha, a O.S. fica aqui até a empresa (ou a gerência) anexar o PDF. A empresa recebe um e-mail pedindo o arquivo.</div>
         ${sc.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Atendida em</th><th></th></tr></thead><tbody>${sc.map(o => `<tr data-os="${o.id}">
           <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td><td>${fmt(o.atend)}</td>
-          <td><div class="acoes"><button class="btn" data-a="abrir">Abrir O.S.</button></div></td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nenhuma O.S. aguardando a O.S. assinada.</div>'}</div>`; })()}
+          <td><div class="acoes pacoes">${ibA("abrir", "abrir", "Abrir a O.S.")}</div></td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nenhuma O.S. aguardando a O.S. assinada.</div>'}</div>`; })()}
       <details class="card"><summary><h3 style="display:inline">Já tratados (${tratadas.length})</h3></summary>
         ${tratadas.length ? `<div class="tbl" style="max-height:50vh"><table><thead><tr><th>Nº O.S.</th><th>Tipo</th><th>Situação</th><th>Quem</th><th>Observação</th></tr></thead><tbody>${tratadas.map(p => `<tr>
           <td><b>${esc(p.numero)}</b></td><td>${p.tipo === "nova" ? "O.S. nova" : "Mudança"}</td><td><span class="badge ${SIT[p.situacao] || "b-gray"}">${esc(p.situacao)}</span></td>
