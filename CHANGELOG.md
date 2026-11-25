@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.10.1] - 2026-11-25
+
+Só arquivos do site (sem migração).
+
+### Alterado
+- **O.S. impressa conforme a situação:**
+  - em aberto (emitida ou em stand by): campos de atendimento e o quadro "Serviços executados e peças trocadas", como na 2.10.0;
+  - atendida: sem campos em branco; mostra o atendimento registrado no sistema (data e serviços e peças informados) e mantém as assinaturas, para colher a assinatura quando faltar a O.S. assinada;
+  - cancelada: só o registro, com o aviso de que não deve ser executada, sem campos nem assinaturas.
+
 ## [2.10.0] - 2026-11-25
 
 Requer a migração `supabase/migrations/013_planilha_so_mudancas_da_planilha.sql` (depois da 012).
