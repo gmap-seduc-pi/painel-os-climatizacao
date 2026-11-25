@@ -506,15 +506,24 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDet()});
 const stamp=()=>new Date().toLocaleString("pt-BR");
 const ph=(t)=>`<div class="ph"><div style="display:flex;align-items:center;gap:12px"><img src="${LOGO}" style="height:40px"><div style="border-left:1px solid #ccc;padding-left:12px"><b>GMAP</b><div style="font-size:11px">Gerência de Material e Patrimônio</div></div></div><div style="text-align:right;font-size:11px">${t}<br>Emitido em ${stamp()}</div></div>`;
 function doPrint(html){$("print").innerHTML=html; setTimeout(()=>window.print(),50)}
-function printOS(list){
-  doPrint(list.map(o=>`<div class="pg os">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>${o.revisao?'<div class="foot"><b>Em revisão pela GMAP: confirme os dados antes de executar.</b></div>':""}
-   <table>${osRows(o).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
-   <div class="osat"><div class="osat-t">Atendimento (preenchimento pela empresa)</div>
+// campos em branco para o atendimento só nas O.S. em aberto; atendida mostra o que foi registrado; cancelada fica só como registro
+function blocoAtendimento(o){
+  if(o.status==="Cancelada") return `<div class="osat osfim"><div class="osat-t">O.S. cancelada</div><div class="osln">Esta O.S. foi cancelada e serve só como registro. Não deve ser executada.</div></div>`;
+  if(o.status==="Atendida"){ let it=""; try{ it=MED.resumoItens(o)||""; }catch(e){}
+    return `<div class="osat osfim"><div class="osat-t">Atendimento registrado no sistema</div>
+      <div class="osln">Atendida em ${fmt(o.atend)||"data não informada"}.</div>
+      ${it?`<div class="osln"><span>Serviços e peças informados:</span>&nbsp;${esc(it)}</div>`:""}</div>`; }
+  return `<div class="osat"><div class="osat-t">Atendimento (preenchimento pela empresa)</div>
      <div class="osln"><span>Data do atendimento:</span><i class="osc">____/____/________</i></div>
      <div class="osln"><span>Acompanhado na unidade por:</span><i class="osl"></i><span>Telefone:</span><i class="osl curto"></i></div>
      <div class="osln"><span>Nº de patrimônio dos aparelhos atendidos:</span><i class="osl"></i></div><div class="osln"><i class="osl"></i></div></div>
-   <div class="osan"><div class="osat-t">Serviços executados e peças trocadas</div><div class="osan-d">Anote o que foi feito em cada aparelho (serviço, potência em BTU, peças trocadas e observações). Estas anotações servem de base para a confirmação do atendimento no sistema.</div><div class="osan-l">${"<i></i>".repeat(40)}</div></div>
-   <div class="sig"><div>Responsável técnico da empresa</div><div>Responsável pela unidade escolar</div></div>
+   <div class="osan"><div class="osat-t">Serviços executados e peças trocadas</div><div class="osan-d">Anote o que foi feito em cada aparelho (serviço, potência em BTU, peças trocadas e observações). Estas anotações servem de base para a confirmação do atendimento no sistema.</div><div class="osan-l">${"<i></i>".repeat(40)}</div></div>`;
+}
+function printOS(list){
+  doPrint(list.map(o=>`<div class="pg os${o.status==="Atendida"||o.status==="Cancelada"?" fim":""}">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>${o.revisao?'<div class="foot"><b>Em revisão pela GMAP: confirme os dados antes de executar.</b></div>':""}
+   <table>${osRows(o).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
+   ${blocoAtendimento(o)}
+   ${o.status==="Cancelada"?"":'<div class="sig"><div>Responsável técnico da empresa</div><div>Responsável pela unidade escolar</div></div>'}
    <div class="foot">Documento gerado pelo Painel de O.S. de Climatização. Situação em ${fmt(REF)}.</div></div>`).join(""));
 }
 $("bPrintSel").onclick=()=>printOS([...sel].map(find).filter(Boolean));
