@@ -615,7 +615,7 @@ const MED = window.iniciarMedicao({CTX, $, esc, fmt, tc, nf, EMPN, todos:()=>ALL
 function contarMed(){ const t=document.querySelector('.tab[data-v="med"]'), n=MED.contarAlertas(); t.innerHTML="Medição"+(n?`<span class="cnt">${n}</span>`:""); t.title=n?MED.resumoAlertas()+"\nAbra a Medição para ver o que fazer.":""; }
 contarMed();
 // Feed: movimentações das O.S., das mais recentes para as mais antigas (a aba vem antes da Visão geral, mas o login abre a Visão geral)
-const FEED = window.iniciarFeed({CTX, $, esc, tc, nf, EMPN, STB, todos:()=>ALL, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), contarFeed:()=>contarFeed(),
+const FEED = window.iniciarFeed({CTX, $, esc, tc, nf, EMPN, STB, todos:()=>ALL, view:()=>view, openDet:(k,l)=>openDet(k,l), recarregar:()=>recarregar(), contarFeed:()=>contarFeed(),
   GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null});
 function contarFeed(){ const t=document.querySelector('.tab[data-v="feed"]'), n=FEED.contar(); t.innerHTML="Feed"+(n?`<span class="cnt" title="O.S. com movimentação nova desde a sua última visita ao Feed">${n>99?"99+":n}</span>`:""); }
 contarFeed();
