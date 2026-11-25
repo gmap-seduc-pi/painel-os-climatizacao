@@ -6,9 +6,43 @@ window.iniciarFeed = function (P) {
   const { CTX, $, esc, tc, nf, EMPN, STB } = P;
   const sb = CTX.sb;
   const GESTAO = P.GESTAO, EMPRESA = P.EMPRESA;
+  // Última visita ao Feed: guardada na conta (banco, migração 012), para valer em qualquer navegador ou celular.
+  // O navegador guarda uma cópia (resposta imediata e reserva se o banco não tiver a migração).
+  // Vale a data mais recente entre as duas. O banco recebe no máximo uma gravação a cada 2 minutos.
   const CHAVE = "feed_visto_" + (CTX.uid || "x");
-  const ler = () => { try { return localStorage.getItem(CHAVE); } catch (e) { return null; } };
-  const gravar = v => { try { localStorage.setItem(CHAVE, v); } catch (e) { /* sem armazenamento: só não guarda a última visita */ } };
+  const lerLocal = () => { try { return localStorage.getItem(CHAVE); } catch (e) { return null; } };
+  const mais = (a, b) => !a ? b : !b ? a : (Date.parse(a) >= Date.parse(b) ? a : b);
+  let VISTO = lerLocal(), semServidor = false, ultEnvio = 0, pendente = null, tEnvio = null;
+  const ler = () => VISTO;
+  async function enviar() {
+    tEnvio = null; if (semServidor || !pendente) return;
+    const v = pendente; pendente = null; ultEnvio = Date.now();
+    try { const { error } = await sb.rpc("feed_marcar_visto", { p_quando: v }); if (error) semServidor = /function|schema cache|does not exist/i.test(error.message || ""); } catch (e) { /* tenta na próxima */ }
+  }
+  const gravar = v => {
+    VISTO = mais(VISTO, v);
+    try { localStorage.setItem(CHAVE, VISTO); } catch (e) { /* sem armazenamento local: segue só com o banco */ }
+    if (semServidor) return;
+    pendente = VISTO; const falta = 120000 - (Date.now() - ultEnvio);
+    if (falta <= 0) enviar(); else if (!tEnvio) tEnvio = setTimeout(enviar, falta);
+  };
+  // ao fechar ou esconder a aba, manda o que estiver pendente
+  const despachar = () => { if (pendente && !semServidor) { clearTimeout(tEnvio); enviar(); } };
+  window.addEventListener("pagehide", despachar);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) despachar(); });
+  // busca a visita guardada na conta; na primeira vez, leva para o banco a data que já estava no navegador
+  (async () => {
+    try {
+      const { data, error } = await sb.from("feed_visitas").select("visto_em").limit(1);
+      if (error) { semServidor = /relation|schema cache|does not exist/i.test(error.message || ""); if (!VISTO) gravar(new Date().toISOString()); return; }
+      const srv = data && data[0] ? data[0].visto_em : null;
+      const antes = VISTO; VISTO = mais(VISTO, srv);
+      if (VISTO) { try { localStorage.setItem(CHAVE, VISTO); } catch (e) {} }
+      if (antes && (!srv || Date.parse(antes) > Date.parse(srv))) { pendente = antes; enviar(); }
+      if (!VISTO) gravar(new Date().toISOString());   // primeira visita em qualquer lugar: começa a contar a partir de agora
+      if (VISTO !== antes) { P.contarFeed(); if (P.view && P.view() === "feed") render(); }
+    } catch (e) { if (!VISTO) gravar(new Date().toISOString()); }
+  })();
   // tipos de movimentação (pela ação registrada no histórico)
   const CAT = [
     { k: "emi", n: "Emissão e aprovação", c: "info", a: ["solicitou", "aprovou", "emitiu", "reenviou", "transferiu a solicitação", "recusou", "devolveu", "importou da planilha"] },
@@ -75,7 +109,7 @@ window.iniciarFeed = function (P) {
     const vis = L.slice(0, ST.lim);
     const grupos = []; vis.forEach(x => { const d = dia(x.e.quando); const g = grupos[grupos.length - 1]; if (g && g.d === d) g.L.push(x); else grupos.push({ d, L: [x] }); });
     const novos = visto ? L.filter(x => Date.parse(x.e.quando) > Date.parse(visto) && x.e.quem_nome !== CTX.nome).length : 0;
-    el.innerHTML = `<div class="card fdtopo"><div class="fish"><h3>Feed de movimentações</h3><div class="acoes"><button class="btn" id="fdAtu">Atualizar</button></div></div>
+    el.innerHTML = `<div class="card fdtopo"><div class="fish"><h3>Feed de movimentações</h3><div class="acoes">${novos ? '<button class="btn" id="fdVisto">Marcar tudo como visto</button>' : ""}<button class="btn" id="fdAtu">Atualizar</button></div></div>
       <div class="d">Tudo o que aconteceu com as O.S.${EMPRESA ? " da empresa" : ""}, das movimentações mais recentes para as mais antigas. Clique numa movimentação para abrir a O.S.${GESTAO ? " Movimentações internas (conferência, pagamento por empenho) aparecem marcadas e não são vistas pelas empresas." : ""}</div>
       <div class="fdf"><label>Período<select id="fdPer">${PER.map(([v, t]) => `<option value="${v}" ${ST.per === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label>Tipo<select id="fdCat"><option value="">Todos os tipos</option>${CAT.map(c => `<option value="${c.k}" ${ST.cat === c.k ? "selected" : ""}>${c.n}</option>`).join("")}</select></label>
@@ -101,11 +135,11 @@ window.iniciarFeed = function (P) {
     if ($("fdEmp")) $("fdEmp").onchange = e => { ST.emp = e.target.value; re(); };
     let t; $("fdQ").oninput = e => { clearTimeout(t); t = setTimeout(() => { ST.q = e.target.value; ST.lim = 60; render().then(() => { const i = $("fdQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 250); };
     $("fdAtu").onclick = async () => { await P.recarregar(); render(true); };
+    if ($("fdVisto")) $("fdVisto").onclick = () => { gravar(new Date().toISOString()); P.contarFeed(); render(); };
     if ($("fdMais")) $("fdMais").onclick = () => { ST.lim += 60; render(); };
     const ordem = [...new Set(vis.map(x => String(x.o.id)))];
     el.querySelectorAll(".fdi").forEach(b => b.onclick = () => P.openDet(b.dataset.os, ordem));
   }
-  // primeira visita: começa a contar a partir de agora
-  if (!ler()) gravar(new Date().toISOString());
+
   return { render, contar };
 };
