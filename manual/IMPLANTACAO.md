@@ -41,7 +41,7 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
 3. Em **Authentication**, nas configurações de cadastro:
    - **desative** a opção que permite novos usuários se cadastrarem sozinhos (só a GMAP cria usuários);
    - mantenha o login por **e-mail** ativo;
-   - defina senha com **mínimo de 10 caracteres**.
+   - defina senha com **mínimo de 8 caracteres** (a partir da 2.9.0; antes eram 10).
 4. Em **Project Settings > API** (ou **API Keys**), anote:
    - a **URL do projeto**;
    - a chave **pública** (`anon` ou `publishable`), que vai no site;
@@ -108,7 +108,18 @@ A planilha continua sendo a fonte. O painel é só consulta. A separação por e
    - **Perfis:** gerência GMAP (tudo), técnico GMAP (solicita e acompanha O.S.), **Consultivo** (Diretoria, fiscais de contrato: consulta, exporta, confere e mantém o cadastro do contrato das empresas liberadas) e Empresa (só as próprias O.S.).
 5. **Primeiro usuário GMAP:** como ainda não há quem aprove, ele se cadastra pelo site e é aprovado uma única vez pelo SQL Editor (comando no fim de `supabase/scripts/usuarios.sql`).
 
-**Esqueceu a senha:** em **Authentication > Users**, abra o usuário e defina uma nova senha temporária. A recuperação automática por e-mail exige um servidor de e-mail próprio no Supabase.
+**Esqueceu a senha** (2.9.0): na tela de login, "Esqueci minha senha" envia ao e-mail do cadastro um link que vale por 1 hora e só pode ser usado uma vez. O link abre apenas a tela "Crie sua nova senha"; a pessoa só entra no painel depois de salvar a senha nova. A gerência também pode enviar o link pela tela **Usuários** ("Enviar link de nova senha"). A senha atual continua valendo até ser trocada. Em último caso, a gerência ainda pode definir uma senha temporária em **Authentication > Users**.
+
+#### Configuração do envio de e-mail da recuperação (uma vez)
+O serviço de e-mail que vem com o Supabase só entrega para a equipe do projeto. A recuperação usa o Gmail da conta que já envia os avisos do painel:
+1. Na conta Google que envia os avisos (com verificação em duas etapas ligada), abra **myaccount.google.com/apppasswords**, crie uma senha de app chamada "Supabase painel" e copie os 16 caracteres. Essa senha vai **somente** no Supabase.
+2. No Supabase, em **Authentication > Emails > SMTP Settings**, ligue **Enable custom SMTP** e preencha:
+   - Sender email: o Gmail dessa conta; Sender name: `Painel de O.S. · GMAP SEDUC-PI`;
+   - Host: `smtp.gmail.com`; Port: `465`; Username: o mesmo Gmail; Password: a senha de app;
+   - Minimum interval between emails: `60` segundos.
+3. Em **Authentication > URL Configuration**: Site URL `https://gmap-seduc-pi.github.io/painel-os-climatizacao/` e, em Redirect URLs, o mesmo endereço.
+4. Em **Authentication > Emails > Templates > Reset password**, troque o assunto e o texto pelos que estão no CHANGELOG da 2.9.0 (em português).
+5. Teste com o seu próprio e-mail antes de avisar a equipe.
 
 ## 6. Regras de negócio implementadas
 
