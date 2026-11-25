@@ -9,7 +9,7 @@
 <link rel="icon" href="assets/logo-seduc.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2.8.0">
+<link rel="stylesheet" href="style.css?v=2.9.0">
 </head>
 <body>
 <div id="login" class="login" hidden>
@@ -21,7 +21,31 @@
     <label>Senha<input type="password" id="lSenha" required autocomplete="current-password"></label>
     <div class="lerr" id="lErr"></div>
     <button class="btn pri" type="submit" id="lBtn">Entrar</button>
-    <div class="lhelp">Não tem acesso? <a href="#" id="aCad">Solicitar acesso</a><br>Esqueceu a senha? Fale com a GMAP.</div>
+    <div class="lhelp"><a href="#" id="aEsq">Esqueci minha senha</a><br>Não tem acesso? <a href="#" id="aCad">Solicitar acesso</a></div>
+  </form>
+</div>
+<div id="rec" class="login" hidden>
+  <form class="lcard" id="fRec">
+    <img src="assets/logo-seduc.png" alt="Secretaria da Educação (SEDUC) · Governo do Piauí">
+    <h1>Esqueci minha senha</h1>
+    <div class="sub">Informe o e-mail do seu cadastro. Enviaremos um link para você criar uma senha nova. O link vale por 1 hora e só pode ser usado uma vez.</div>
+    <label>E-mail<input type="email" id="rEmail" required autocomplete="username"></label>
+    <div class="lerr" id="rErr"></div>
+    <div class="lok" id="rOk" role="status"></div>
+    <button class="btn pri" type="submit" id="rBtn">Enviar link</button>
+    <div class="lhelp"><a href="#" id="aLogin2">Voltar ao login</a><br>Não recebeu? Confira a caixa de spam ou fale com a GMAP.</div>
+  </form>
+</div>
+<div id="novaSenha" class="login" hidden>
+  <form class="lcard" id="fNovaSenha">
+    <img src="assets/logo-seduc.png" alt="Secretaria da Educação (SEDUC) · Governo do Piauí">
+    <h1>Crie sua nova senha</h1>
+    <div class="sub" id="nsSub">Escolha uma senha com pelo menos 8 caracteres.</div>
+    <label>Nova senha (mínimo de 8 caracteres)<input type="password" id="ns1" minlength="8" required autocomplete="new-password"></label>
+    <label>Repita a nova senha<input type="password" id="ns2" minlength="8" required autocomplete="new-password"></label>
+    <div class="lerr" id="nsErr"></div>
+    <button class="btn pri" type="submit" id="nsBtn">Salvar a nova senha</button>
+    <div class="lhelp"><a href="#" id="nsCanc">Cancelar e voltar ao login</a></div>
   </form>
 </div>
 <div id="cad" class="login" hidden>
@@ -46,8 +70,8 @@
     <fieldset id="lEmps" class="cemps" hidden><legend>Empresas que vai fiscalizar</legend>
       <label class="chk1"><input type="checkbox" id="cTodas"><span>Todas as empresas (Diretoria)</span></label>
       <div id="cEmpsL"></div><small>A gerência confere antes de liberar o acesso.</small></fieldset>
-    <label>Senha (mínimo de 10 caracteres)<input type="password" id="cS1" minlength="10" required autocomplete="new-password"></label>
-    <label>Repita a senha<input type="password" id="cS2" minlength="10" required autocomplete="new-password"></label>
+    <label>Senha (mínimo de 8 caracteres)<input type="password" id="cS1" minlength="8" required autocomplete="new-password"></label>
+    <label>Repita a senha<input type="password" id="cS2" minlength="8" required autocomplete="new-password"></label>
     <div class="lerr" id="cErr"></div>
     <button class="btn pri" type="submit" id="cBtn">Enviar solicitação</button>
     <div class="lhelp"><a href="#" id="aLogin">Voltar ao login</a></div>
@@ -65,9 +89,9 @@
 <div class="drawer" id="dSenha"><form class="panel" id="fSenha" style="height:auto;margin:auto;border-radius:10px;max-width:420px">
   <h2>Minha conta</h2><p class="sub" id="sPerf"></p>
   <label class="fl">Nome completo<input type="text" id="sNome" maxlength="120" autocomplete="name"></label>
-  <p class="sub" style="margin-top:6px">Para trocar a senha, preencha os dois campos abaixo (mínimo de 10 caracteres). Deixe em branco para manter a atual.</p>
-  <label class="fl">Nova senha<input type="password" id="s1" minlength="10" autocomplete="new-password"></label>
-  <label class="fl">Repita a nova senha<input type="password" id="s2" minlength="10" autocomplete="new-password"></label>
+  <p class="sub" style="margin-top:6px">Para trocar a senha, preencha os dois campos abaixo (mínimo de 8 caracteres). Deixe em branco para manter a atual.</p>
+  <label class="fl">Nova senha<input type="password" id="s1" minlength="8" autocomplete="new-password"></label>
+  <label class="fl">Repita a nova senha<input type="password" id="s2" minlength="8" autocomplete="new-password"></label>
   <div class="lerr" id="sErr"></div>
   <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn" id="sCanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div>
 </form></div>
@@ -181,14 +205,14 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="config.js?v=2.8.0"></script>
-<script src="ui.js?v=2.8.0"></script>
-<script src="painel.js?v=2.8.0"></script>
-<script src="usuarios.js?v=2.8.0"></script>
-<script src="emissao.js?v=2.8.0"></script>
-<script src="fiscalizacao.js?v=2.8.0"></script>
-<script src="medicao.js?v=2.8.0"></script>
-<script src="feed.js?v=2.8.0"></script>
-<script src="app.js?v=2.8.0"></script>
+<script src="config.js?v=2.9.0"></script>
+<script src="ui.js?v=2.9.0"></script>
+<script src="painel.js?v=2.9.0"></script>
+<script src="usuarios.js?v=2.9.0"></script>
+<script src="emissao.js?v=2.9.0"></script>
+<script src="fiscalizacao.js?v=2.9.0"></script>
+<script src="medicao.js?v=2.9.0"></script>
+<script src="feed.js?v=2.9.0"></script>
+<script src="app.js?v=2.9.0"></script>
 </body>
 </html>

@@ -4,6 +4,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.9.0] - 2026-11-25
+
+Só arquivos do site (sem migração). Exige configurar o envio de e-mail no Supabase (passo a passo no manual, "Configuração do envio de e-mail da recuperação").
+
+### Adicionado
+- **Esqueci minha senha** na tela de login: a pessoa informa o e-mail e recebe um link para criar uma senha nova (vale 1 hora, uso único).
+  - a resposta na tela é sempre a mesma, exista ou não o cadastro (ninguém usa a tela para descobrir e-mails);
+  - o link abre só a tela "Crie sua nova senha", mesmo que a página seja recarregada; a pessoa só entra no painel depois de salvar a senha (ou cancela e volta ao login);
+  - link vencido ou já usado: aviso claro no login;
+  - pedido repetido em menos de 1 minuto: aviso para aguardar.
+- **Usuários (gerência): "Enviar link de nova senha"** para usuários ativos. A gerência não vê nem define a senha; a atual continua valendo até ser trocada.
+
+### Alterado
+- Senha mínima passa de **10 para 8 caracteres** (cadastro, Minha conta e nova senha). Ajustar também no Supabase: Authentication, configurações do login por e-mail, campo "Minimum password length" = 8.
+
+### Modelo do e-mail (Authentication > Emails > Templates > Reset password)
+Assunto: `Painel de O.S.: crie uma senha nova`
+
+```html
+<p>Olá,</p>
+<p>Recebemos um pedido para criar uma senha nova no Painel de O.S. de Climatização (GMAP · SEDUC-PI).</p>
+<p><a href="{{ .ConfirmationURL }}">Criar minha senha nova</a></p>
+<p>O link vale por 1 hora e só pode ser usado uma vez. Se você não fez esse pedido, ignore esta mensagem: sua senha atual continua valendo.</p>
+<p>GMAP · Secretaria de Estado da Educação do Piauí</p>
+```
+
 ## [2.8.0] - 2026-11-22
 
 Requer a migração `supabase/migrations/011_auditoria_verificacoes.sql` (depois da 010).

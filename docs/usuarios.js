@@ -39,7 +39,7 @@ async function renderUsuarios(CTX) {
   $("uTodos").innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th>Decidido em</th><th></th></tr></thead><tbody>${
     outros.map(u => {
       const eu = u.user_id === CTX.uid, s = SIT[u.situacao] || [u.situacao, "b-gray"];
-      const acao = `<div class="acoes"><button class="btn" data-x="editar">Editar</button>` + (eu ? '<span class="mun">você</span>' : (u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>')
+      const acao = `<div class="acoes"><button class="btn" data-x="editar">Editar</button>` + (!eu && u.situacao === "aprovado" && u.email ? '<button class="btn" data-x="senha" title="Envia ao e-mail do usuário um link para criar uma senha nova">Enviar link de nova senha</button>' : "") + (eu ? '<span class="mun">você</span>' : (u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>')
         + '<button class="btn no" data-x="excluir">Excluir</button>') + "</div>";
       return `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${uPerfilTxt(u)}${u.empresa ? "<div class='mun'>" + uEsc(u.empresa) + "</div>" : ""}</td>
         <td><span class="badge ${s[1]}">${s[0]}</span></td><td>${uData(u.ultimo_acesso)}</td><td>${u.decidido_em ? uData(u.decidido_em) : ""}</td><td>${acao}</td></tr>`;
@@ -50,6 +50,7 @@ async function renderUsuarios(CTX) {
   document.querySelectorAll("#uTodos button[data-x], #uPend button[data-x]").forEach(b => b.onclick = async () => {
     const u = porId(b.closest("tr").dataset.id); if (!u) return;
     if (b.dataset.x === "editar") return editarUsuario(CTX, u, empresas, recarregar);
+    if (b.dataset.x === "senha") return enviarLinkUsuario(u, b);
     return excluirUsuario(CTX, u, recarregar);
   });
   document.querySelectorAll('#uPend select[data-f="perfil"]').forEach(sel => sel.onchange = () => {
@@ -73,6 +74,17 @@ async function renderUsuarios(CTX) {
     await renderUsuarios(CTX);
     contarPendentes(CTX);
   });
+}
+
+// gerência: envia ao usuário o link de redefinição de senha (o mesmo de "Esqueci minha senha").
+// A senha atual continua valendo até a pessoa criar a nova; a gerência não vê nem define a senha.
+async function enviarLinkUsuario(u, b) {
+  if (!(await UI.confirmar({ titulo: "Enviar link de nova senha?", texto: `${uEsc(u.nome || u.email)} vai receber em ${uEsc(u.email)} um link para criar uma senha nova. O link vale por 1 hora. A senha atual continua valendo até ser trocada.`, botao: "Enviar link" }))) return;
+  b.disabled = true;
+  const erro = await window.enviarLinkSenha(u.email);
+  if (erro) { document.getElementById("uMsg").textContent = erro; b.disabled = false; return; }
+  document.getElementById("uMsg").textContent = `Link de nova senha enviado para ${u.email}.`;
+  setTimeout(() => { b.disabled = false; }, 60000);
 }
 
 // gerência: editar nome, perfil, empresa e função (o próprio perfil não pode ser trocado)

@@ -3,13 +3,28 @@
 (function () {
   const cfg = window.PAINEL_CONFIG || {};
   const $ = id => document.getElementById(id);
-  const show = id => ["login", "cad", "pend", "carregando", "app"].forEach(x => $(x).hidden = x !== id);
+  const show = id => ["login", "cad", "rec", "novaSenha", "pend", "carregando", "app"].forEach(x => $(x).hidden = x !== id);
 
   if (!cfg.SUPABASE_URL || cfg.SUPABASE_URL.includes("SEU-PROJETO")) {
     show("carregando");
     $("carregando").innerHTML = '<div class="lcard"><b>Configuração pendente</b><div class="sub">Preencha o arquivo config.js com a URL e a chave pública do Supabase.</div></div>';
     return;
   }
+  // Recuperação de senha: o link do e-mail volta para o site com "type=recovery" (ou com o erro de link vencido).
+  // Lido ANTES de criar o cliente, porque o cliente consome e limpa o endereço. Enquanto a marca existir nesta aba,
+  // a pessoa só vê a tela de nova senha (o link já autentica; sem isso ela entraria no painel sem trocar a senha).
+  const MARCA_REC = "painel_recuperacao";
+  const marcaRec = { ler() { try { return sessionStorage.getItem(MARCA_REC) === "1"; } catch (e) { return false; } },
+    por(v) { try { v ? sessionStorage.setItem(MARCA_REC, "1") : sessionStorage.removeItem(MARCA_REC); } catch (e) {} } };
+  const hashIni = String(location.hash || "");
+  let erroLink = "";
+  if (/(^|[#&])type=recovery(&|$)/.test(hashIni)) marcaRec.por(true);
+  if (/(^|[#&])error_code=/.test(hashIni) || /(^|[#&])error=/.test(hashIni)) {
+    erroLink = /expired|otp_expired/i.test(hashIni) ? "O link de redefinição venceu ou já foi usado. Peça um novo em \"Esqueci minha senha\"." : "Não foi possível usar o link. Peça um novo em \"Esqueci minha senha\".";
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  }
+  // link colado na mesma aba em que o site já estava aberto: só o "#..." muda; recarrega para ler o link
+  window.addEventListener("hashchange", () => { if (/(^|[#&])(type=recovery|error_code=|error=)/.test(location.hash)) location.reload(); });
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true }
   });
@@ -92,7 +107,8 @@
   async function iniciar() {
     show("carregando");
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) return show("login");
+    if (!session) { marcaRec.por(false); show("login"); if (erroLink) { $("lErr").textContent = erroLink; erroLink = ""; } return; }
+    if (marcaRec.ler()) { $("ns1").value = $("ns2").value = ""; $("nsErr").textContent = ""; $("nsSub").textContent = "Conta: " + (session.user.email || "") + ". Escolha uma senha com pelo menos 8 caracteres."; return show("novaSenha"); }
 
     const { data: perfis, error: ep } = await sb.from("perfis").select("perfil, empresa, funcao, empresas, todas_empresas, nome, email, situacao").eq("user_id", session.user.id);
     const p = perfis && perfis[0];
@@ -241,6 +257,50 @@
     $("cEmpsL").innerHTML = nomes.map(e => `<label class="chk1"><input type="checkbox" class="cEmp" value="${e}"><span>${e}</span></label>`).join("");
   };
   $("aLogin").onclick = ev => { ev.preventDefault(); show("login"); };
+
+  // ---------- Esqueci minha senha ----------
+  // A mensagem é sempre a mesma, exista ou não o cadastro (para ninguém usar a tela para descobrir e-mails).
+  const urlRetorno = () => location.origin + location.pathname;
+  async function enviarLinkSenha(email) {
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: urlRetorno() });
+    if (!error) return null;
+    if (error.status === 429 || /security purposes|rate limit|after \d+ seconds/i.test(error.message || "")) return "Aguarde um minuto antes de pedir outro link para este e-mail.";
+    return "Não foi possível enviar o link agora. Tente mais tarde ou fale com a GMAP.";
+  }
+  window.enviarLinkSenha = enviarLinkSenha;
+  $("aEsq").onclick = ev => { ev.preventDefault(); $("rEmail").value = $("lEmail").value.trim(); $("rErr").textContent = ""; $("rOk").textContent = ""; show("rec"); $("rEmail").focus(); };
+  $("aLogin2").onclick = ev => { ev.preventDefault(); show("login"); };
+  UI.aoEnviar("fRec", async ev => {
+    ev.preventDefault();
+    $("rErr").textContent = ""; $("rOk").textContent = "";
+    const email = $("rEmail").value.trim();
+    if (!/^[^\s@]+@[^\s@]+$/.test(email)) { $("rErr").textContent = "Informe um e-mail válido."; return; }
+    $("rBtn").disabled = true;
+    const erro = await enviarLinkSenha(email);
+    if (erro) { $("rErr").textContent = erro; $("rBtn").disabled = false; return; }
+    $("rOk").textContent = "Se este e-mail estiver cadastrado, você vai receber em instantes um link para criar uma senha nova. Confira também a caixa de spam.";
+    setTimeout(() => { $("rBtn").disabled = false; }, 60000);   // evita pedidos repetidos
+  });
+  // tela de nova senha (aberta pelo link do e-mail)
+  sb.auth.onAuthStateChange(ev => { if (ev === "PASSWORD_RECOVERY" && !marcaRec.ler()) { marcaRec.por(true); iniciar(); } });
+  UI.aoEnviar("fNovaSenha", async ev => {
+    ev.preventDefault();
+    $("nsErr").textContent = "";
+    if ($("ns1").value.length < 8) { $("nsErr").textContent = "A senha precisa ter pelo menos 8 caracteres."; return; }
+    if ($("ns1").value !== $("ns2").value) { $("nsErr").textContent = "As duas senhas não conferem."; return; }
+    $("nsBtn").disabled = true;
+    const { error } = await sb.auth.updateUser({ password: $("ns1").value });
+    $("nsBtn").disabled = false;
+    if (error) {
+      $("nsErr").textContent = /different from the old|same password/i.test(error.message) ? "A senha nova precisa ser diferente da anterior."
+        : /at least|weak|characters/i.test(error.message) ? "Senha fraca ou curta. Use pelo menos 8 caracteres, misturando letras e números."
+        : /session|expired|jwt/i.test(error.message) ? "O link venceu. Peça um novo em \"Esqueci minha senha\"." : "Não foi possível salvar: " + error.message;
+      return;
+    }
+    marcaRec.por(false); $("ns1").value = $("ns2").value = "";
+    iniciar().then(() => UI.aviso && UI.aviso("Senha alterada. Use a nova senha nos próximos acessos.", "ok"));
+  });
+  $("nsCanc").onclick = async ev => { ev.preventDefault(); marcaRec.por(false); try { await sb.auth.signOut({ scope: "local" }); } catch (e) {} show("login"); };
   $("cPerfil").onchange = () => { const v = $("cPerfil").value; $("lEmp").hidden = v !== "empresa"; $("cEmpresa").required = v === "empresa";
     $("lFun").hidden = v !== "consultivo"; $("lFunO").hidden = v !== "consultivo" || $("cFuncao").value !== "outra"; $("lEmps").hidden = v !== "consultivo"; };
   $("cTodas").onchange = () => document.querySelectorAll(".cEmp").forEach(c => { c.disabled = $("cTodas").checked; if (c.disabled) c.checked = false; });
@@ -250,7 +310,7 @@
     $("cErr").textContent = "";
     const faltaC = [["cNome", "Nome"], ["cEmail", "E-mail"], ["cS1", "Senha"], ["cS2", "Confirmação da senha"]].filter(([i]) => !$(i).value.trim());
     if (faltaC.length) return UI.alerta({ titulo: "Preencha os campos obrigatórios", itens: faltaC.map(x => x[1]), campos: faltaC.map(x => $(x[0])) });
-    if ($("cS1").value.length < 10) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 10 caracteres.", campos: [$("cS1")] });
+    if ($("cS1").value.length < 8) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 8 caracteres.", campos: [$("cS1")] });
     if ($("cS1").value !== $("cS2").value) return UI.alerta({ titulo: "As senhas não conferem", itens: "Digite a mesma senha nos dois campos.", campos: [$("cS2")] });
     const perfil = $("cPerfil").value, empresa = perfil === "empresa" ? $("cEmpresa").value : null;
     if (perfil === "empresa" && !empresa) return UI.alerta({ titulo: "Selecione a empresa", itens: "Para o perfil Empresa, escolha a empresa na lista.", campos: [$("cEmpresa")] });
@@ -283,7 +343,7 @@
     ev.preventDefault();
     const nome = $("sNome").value.trim().replace(/\s+/g, " "), trocaSenha = !!($("s1").value || $("s2").value), trocaNome = EU && nome !== EU.nome;
     if (nome.length < 3) return UI.alerta({ titulo: "Informe o nome completo", itens: "O nome precisa ter pelo menos 3 caracteres.", campos: [$("sNome")] });
-    if (trocaSenha && $("s1").value.length < 10) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 10 caracteres.", campos: [$("s1")] });
+    if (trocaSenha && $("s1").value.length < 8) return UI.alerta({ titulo: "Senha curta", itens: "A senha precisa ter pelo menos 8 caracteres.", campos: [$("s1")] });
     if (trocaSenha && $("s1").value !== $("s2").value) return UI.alerta({ titulo: "As senhas não conferem", itens: "Digite a mesma senha nos dois campos.", campos: [$("s2")] });
     if (!trocaNome && !trocaSenha) { $("dSenha").classList.remove("on"); return; }
     const feito = [];

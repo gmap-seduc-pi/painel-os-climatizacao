@@ -621,3 +621,6 @@ tr.cmpr>td{background:var(--soft);padding:0 10px 14px}
   table.tcard table.cmpt tbody th{width:28%}
   table.tcard table.cmpt tr.df td{background:var(--warnbg)}
 }
+/* 2.9.0 · recuperação de senha */
+.lok{color:var(--ok);font-size:13px;text-align:center}
+.lok:empty{display:none}
