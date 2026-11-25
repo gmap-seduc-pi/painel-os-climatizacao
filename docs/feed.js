@@ -47,7 +47,7 @@ window.iniciarFeed = function (P) {
   const CAT = [
     { k: "emi", n: "Emissão e aprovação", c: "info", a: ["solicitou", "aprovou", "emitiu", "reenviou", "transferiu a solicitação", "recusou", "devolveu", "importou da planilha"] },
     { k: "atd", n: "Atendimento", c: "ok", a: ["registrou atendimento", "corrigiu atendimento", "desfez atendimento", "anexou a O.S. assinada"] },
-    { k: "and", n: "Stand by, cancelamento e revisão", c: "warn", a: ["colocou em stand by", "retomou", "cancelou", "editou", "atualizou dados da escola", "colocou em revisão", "em revisão", "revisão concluída", "encerrou revisão sem alterar"] },
+    { k: "and", n: "Problema, cancelamento e revisão", c: "warn", a: ["registrou problema", "resolveu o problema", "colocou em stand by", "retomou", "cancelou", "editou", "atualizou dados da escola", "colocou em revisão", "em revisão", "revisão concluída", "encerrou revisão sem alterar"] },
     { k: "fis", n: "Fiscalização e medição", c: "rev", a: ["informou itens", "corrigiu itens", "conferiu", "registrou pagamento por empenho"] },
     { k: "pla", n: "Planilha", c: "gray", a: ["aplicou mudança da planilha", "manteve o sistema"] }
   ];
@@ -120,7 +120,7 @@ window.iniciarFeed = function (P) {
         const novo = visto && Date.parse(x.e.quando) > Date.parse(visto) && x.e.quem_nome !== CTX.nome;
         return `<li><button type="button" class="fdi${novo ? " novo" : ""}" data-os="${esc(String(x.o.id))}">
           <span class="fdh">${esc(hora(x.e.quando))}</span><span class="fdp ${x.cat.c}" aria-hidden="true"></span>
-          <span class="fdc"><span class="fdt"><b>${esc(maiusc(x.e.acao))}</b> · O.S. <b>${esc(x.o.os)}</b> <span class="badge ${STB[x.o.status] || "b-gray"}">${esc(x.o.status)}</span>${x.e.interno ? ' <span class="badge b-rev">interno</span>' : ""}${novo ? ' <span class="badge b-novo">Novo</span>' : ""}</span>
+          <span class="fdc"><span class="fdt"><b>${esc(maiusc(x.e.acao))}</b> · O.S. <b>${esc(x.o.os)}</b> <span class="badge ${STB[x.o.status] || "b-gray"}">${esc(UI.rotStatus(x.o.status))}</span>${x.e.interno ? ' <span class="badge b-rev">interno</span>' : ""}${novo ? ' <span class="badge b-novo">Novo</span>' : ""}</span>
             <span class="fdq2">${esc(x.e.quem_nome || "")}${x.e.perfil === "empresa" ? " (empresa)" : ""} · ${esc(tc(x.o.escola || ""))}${x.o.mun ? ", " + esc(tc(x.o.mun)) : ""}${!EMPRESA ? " · " + esc(EMPN[x.o.emp] || x.o.emp || "") : ""}</span>
             ${x.e.detalhe ? `<span class="fdd" title="${esc(x.e.detalhe)}">${esc(x.e.detalhe)}</span>` : ""}</span></button></li>`; }).join("")}</ol></div>`).join("")
         : `<div class="card"><div class="empty">Nenhuma movimentação ${ST.per === "1" ? "hoje" : "no período"}${ST.cat || ST.emp || ST.q ? " com esses filtros" : ""}.</div></div>`}

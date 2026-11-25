@@ -79,7 +79,7 @@ const FD = [
   {k:"emp",n:"Empresa",opts:()=>EMPS.map(e=>[e,EMPN[e]]),hideEmp:true},
   {k:"gre",n:"GRE",opts:()=>uniq("gre").map(g=>[g,g==="SEDE"?"Sede":g.replace(/^0?(\d+)ª - (.*)$/,(m,a,b)=>a+"ª "+tc(b))])},
   {k:"mun",n:"Município",opts:()=>uniq("mun").map(m=>[m,tc(m)])},
-  {k:"status",n:"Status",opts:()=>["Emitida","Stand by","Atendida","Cancelada"].map(s=>[s,s])},
+  {k:"status",n:"Status",opts:()=>["Emitida","Stand by","Atendida","Cancelada"].map(s=>[s,UI.rotStatus(s)])},
   {k:"prio",n:"Prioridade",opts:()=>PRIOS.map(p=>[p,p])},
   {k:"serv",n:"Tipo de serviço",opts:()=>SERV.map(s=>[s,SERVN[s]])},
 ];
@@ -240,7 +240,7 @@ const CHECKS = [
   {id:"parc",c:"y",t:"Atendimento parcial posterior",x:"Em aberto; a escola foi atendida depois, mas com outro serviço ou menos splits",
    f:o=>{const b=backlog(o);return b&&b.tipo==="parc"?b:null}},
   {id:"dup",c:"y",t:"Possível duplicidade em aberto",x:"Pares de O.S. em aberto na mesma escola com o mesmo tipo de serviço. Clique no par para comparar",pares:true},
-  {id:"just",c:"r",t:"Vencida sem justificativa",x:"Em aberto, vencida, sem justificativa da empresa nem motivo de stand by",
+  {id:"just",c:"r",t:"Vencida sem justificativa",x:"Em aberto, vencida, sem justificativa da empresa nem problema registrado",
    f:o=>o.sp==="Vencida"&&!o.just&&!o.standby_motivo?`Vencida há ${o.atraso} dias sem justificativa`:null},
   {id:"semat",c:"y",t:"Atendida sem data de atendimento",x:"Status Atendida, mas a data não foi preenchida",
    f:o=>o.status==="Atendida"&&!o.atend?"Data do atendimento em branco":null},
@@ -323,11 +323,11 @@ function renderAud(L){
   const marcado=e=>`<div class="vmot"><b>Não se confirma:</b> ${esc(e.v.motivo)}<div class="mun">${esc(e.v.quem_nome||"")} em ${dt(e.v.em)}</div></div>`;
   const acaoB=(e,i)=>VERIF[c.id]?(ver?`<button type="button" class="btn" data-vol="${i}">Voltar a contar</button>`:`<button type="button" class="btn" data-nc="${i}">${c.pares?"Não é duplicidade":"Não se confirma"}</button>`):"";
   const escCel=o=>`<div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div>`;
-  const osCel=o=>`<b>${esc(o.os)}</b><div class="mun">${EMPN[o.emp]||esc(o.emp)} · <span class="badge ${STB[o.status]}">${esc(o.status)}</span></div><div class="mun">criada em ${fmt(o.criada)||"n/d"}</div>`;
+  const osCel=o=>`<b>${esc(o.os)}</b><div class="mun">${EMPN[o.emp]||esc(o.emp)} · <span class="badge ${STB[o.status]}">${esc(UI.rotStatus(o.status))}</span></div><div class="mun">criada em ${fmt(o.criada)||"n/d"}</div>`;
   const tabela = !rows.length ? `<div class="empty">${ver?"Nenhuma ocorrência verificada neste cartão.":"Nenhuma ocorrência no filtro atual."}</div>`
     : c.pares ? `<table class="audp"><thead><tr><th>O.S.</th><th>Outra O.S.</th><th>Escola</th><th>${ver?"Verificação":"Serviço em comum"}</th>${VERIF[c.id]?"<th></th>":""}</tr></thead><tbody>${rows.map((e,i)=>{ const k=e.o.id+"-"+e.par.id, ab=audAbertos.has(k);
         return `<tr class="r par${ab?" on":""}" data-i="${i}" data-k="${k}" title="Clique para comparar"><td>${osCel(e.o)}</td><td>${osCel(e.par)}</td><td>${escCel(e.o)}</td><td class="ev">${ver?marcado(e):esc(e.ev)}${voltou(e)}<div><button type="button" class="lnk" data-cmp="${i}">${ab?"Fechar a comparação":"Comparar lado a lado"}</button></div></td>${VERIF[c.id]?`<td>${acaoB(e,i)}</td>`:""}</tr>${ab?`<tr class="cmpr"><td colspan="5">${comparar(e.o,e.par)}</td></tr>`:""}`; }).join("")}</tbody></table>`
-    : `<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>${ver?"Verificação":"Evidência"}</th>${VERIF[c.id]?"<th></th>":""}</tr></thead><tbody>${rows.map((e,i)=>`<tr class="r" data-os="${e.o.id}" data-i="${i}"><td><b>${esc(e.o.os)}</b></td><td>${EMPN[e.o.emp]||esc(e.o.emp)}</td><td>${escCel(e.o)}</td><td><span class="badge ${STB[e.o.status]}">${esc(e.o.status)}</span></td><td>${fmt(e.o.criada)||"n/d"}</td><td class="ev">${ver?marcado(e)+`<div class="mun">${esc(e.ev)}</div>`:esc(e.ev)}${voltou(e)}</td>${VERIF[c.id]?`<td>${acaoB(e,i)}</td>`:""}</tr>`).join("")}</tbody></table>`;
+    : `<table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>Escola</th><th>Status</th><th>Criada</th><th>${ver?"Verificação":"Evidência"}</th>${VERIF[c.id]?"<th></th>":""}</tr></thead><tbody>${rows.map((e,i)=>`<tr class="r" data-os="${e.o.id}" data-i="${i}"><td><b>${esc(e.o.os)}</b></td><td>${EMPN[e.o.emp]||esc(e.o.emp)}</td><td>${escCel(e.o)}</td><td><span class="badge ${STB[e.o.status]}">${esc(UI.rotStatus(e.o.status))}</span></td><td>${fmt(e.o.criada)||"n/d"}</td><td class="ev">${ver?marcado(e)+`<div class="mun">${esc(e.ev)}</div>`:esc(e.ev)}${voltou(e)}</td>${VERIF[c.id]?`<td>${acaoB(e,i)}</td>`:""}</tr>`).join("")}</tbody></table>`;
   $("audlist").innerHTML=`<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap"><div><h3>${c.t} (${nf(rows.length)}${ver?" verificadas":""})</h3><div class="d">${c.x}${c.pares?"":". Clique na O.S. para ver o detalhe"}.${VERIF[c.id]&&!ver?' Se a ocorrência não se confirmar, use "'+(c.pares?"Não é duplicidade":"Não se confirma")+'": ela sai da contagem e volta se a evidência mudar.':""}</div></div>
     <div class="acoes">${VERIF[c.id]?`<div class="audseg" role="group" aria-label="Ocorrências"><button type="button" class="btn${ver?"":" on"}" id="audAt" aria-pressed="${!ver}">Na contagem (${nf(res[audSel].length)})</button><button type="button" class="btn${ver?" on":""}" id="audVf" aria-pressed="${ver}">Verificadas (${nf(verif[audSel].length)})</button></div>`:""}<button class="btn" id="audx" ${rows.length?"":"disabled"}>Exportar lista (.xlsx)</button></div></div>
    <div class="tbl" style="max-height:${c.pares?"none":"60vh"}">${tabela}</div>`;
@@ -345,7 +345,7 @@ function renderAud(L){
   lista.querySelectorAll("[data-nc]").forEach(b=>b.onclick=()=>desconsiderar(c,rows[+b.dataset.nc],L));
   lista.querySelectorAll("[data-vol]").forEach(b=>b.onclick=()=>reconsiderar(rows[+b.dataset.vol]));
   EMI.audEntidades(L);
-  const lin=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??""];
+  const lin=o=>[o.os,EMPN[o.emp]||o.emp,UI.rotStatus(o.status),o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.escola,o.inep,o.mun,svTxt(o),o.splits??""];
   const cab=["Nº O.S.","Empresa","Status","Prioridade","Criada em","Prazo","Atendida em","Escola","INEP","Município","Serviço","Splits"];
   const extra=e=>[e.ev].concat(ver?[e.v.motivo,e.v.quem_nome||"",dt(e.v.em)]:[e.voltou?"Voltou a contar (evidência mudou)":""]);
   const cabX=["Evidência"].concat(ver?["Motivo (não se confirma)","Verificada por","Em"]:["Observação"]);
@@ -436,7 +436,7 @@ function renderFila(){
     const pz = o.sp==="Vencida" ? `<span class="badge b-bad">Vencida há ${nf(o.atraso)} d</span>` : o.sp==="A vencer" ? `<span class="badge b-warn">Vence em ${nf(-o.atraso)} d</span>` : `<span class="badge ${SPB[o.sp]}">${o.sp}</span>`;
     return `<tr class="r${sel.has(id(o))?" marc":""}${recente(o,30)?" rec":""}" data-os="${esc(id(o))}"><td class="c-ck"><input type="checkbox" class="ck" aria-label="Selecionar O.S. ${esc(o.os)}" ${sel.has(id(o))?"checked":""}></td><td class="c-num"><b>${esc(o.os)}</b></td><td class="c-emp">${EMPN[o.emp]||esc(o.emp)}</td>
     <td class="c-esc"><div class="esc">${esc(tc(o.escola))}</div><div class="mun">${esc(tc(o.mun||"Município não informado"))}</div></td>
-    <td class="c-prio"><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="c-cri">${fmt(o.criada)}</td><td class="c-prz">${fmt(o.prazo)}</td><td class="c-sp">${pz}</td><td class="c-st"><span class="badge ${STB[o.status]}">${esc(o.status)}</span>${o.revisao?`<div><span class="badge b-rev">Em revisão</span></div>`:""}${recente(o,7*1440)?`<div class="movt" title="${esc(ACAO_TXT(o.movimentacao)+(o.movimentada_por?" por "+o.movimentada_por:""))}">${recente(o,30)?'<span class="badge b-novo">Novo</span> ':""}${esc(quando(o.movimentada_em))}</div>`:""}</td></tr>`}).join("")
+    <td class="c-prio"><span class="badge ${PRB[o.prio]||"b-gray"}">${esc(o.prio||"n/d")}</span></td><td class="c-cri">${fmt(o.criada)}</td><td class="c-prz">${fmt(o.prazo)}</td><td class="c-sp">${pz}</td><td class="c-st"><span class="badge ${STB[o.status]}">${esc(UI.rotStatus(o.status))}</span>${o.revisao?`<div><span class="badge b-rev">Em revisão</span></div>`:""}${recente(o,7*1440)?`<div class="movt" title="${esc(ACAO_TXT(o.movimentacao)+(o.movimentada_por?" por "+o.movimentada_por:""))}">${recente(o,30)?'<span class="badge b-novo">Novo</span> ':""}${esc(quando(o.movimentada_em))}</div>`:""}</td></tr>`}).join("")
     : `<tr><td colspan="9" class="empty">Nenhuma O.S. encontrada.</td></tr>`;
   $("tb").tBodies[0].querySelectorAll("tr.r").forEach(tr=>{
     const ck=tr.querySelector(".ck");
@@ -460,13 +460,13 @@ ligarOrdem();
 // ---------- detalhe ----------
 const find = k => ALL.find(o=>String(o.id)===String(k)) || SOLIC.find(o=>String(o.id)===String(k));
 const ORIG={redmine:"Redmine",sei:"Processo SEI",gerencia:"Determinação da gerência"};
-function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",o.status],["Prioridade",o.prio||"n/d"],["Emitida em",fmt(o.criada)],["Prazo",fmt(o.prazo)],["Atendida em",fmt(o.atend)||"n/d"],
+function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",UI.rotStatus(o.status)],["Prioridade",o.prio||"n/d"],["Emitida em",fmt(o.criada)],["Prazo",fmt(o.prazo)],["Atendida em",fmt(o.atend)||"n/d"],
   ["Situação do prazo",PRE.includes(o.status)?"Ainda não emitida":o.sp],["Escola / entidade",o.escola],["INEP",o.inep],["GRE",o.gre],["Município",tc(o.mun||"")],["Zona",o.zona],["Endereço",o.end],
   ["Origem da demanda",o.origem?ORIG[o.origem]+(o.origem_num?" nº "+o.origem_num:""):""],["Processo SEI",o.sei],["Serviço",o.serv.map(s=>SERVN[s]||s).join(", ")],
   ["Qtd. de splits",o.splits??""],["Motivo da O.S.",(o.motivos||[]).join("; ")],["Ambientes",(o.ambientes||[]).map(a=>`${a.ambiente}: ${a.splits} split${a.splits===1?"":"s"}`).join(" · ")],
   ["Responsável pela entidade",o.resp_nome?o.resp_nome+" · "+(o.resp_contato||""):""],["Descrição / observações",o.obs],
   ...(o.respostas||[]).map(r=>[r.rotulo,Array.isArray(r.valor)?r.valor.join(", "):r.tipo==="data"?fmt(r.valor):r.valor]),["Empresa fora da área sugerida",o.fora_area?("Sim. Justificativa: "+(o.fora_just||"")):""],
-  ["Motivo do stand by",o.status==="Stand by"?o.standby_motivo+(o.standby_por?" ("+(o.standby_por==="empresa"?"empresa":"GMAP")+")":""):""],
+  ["Problema informado",o.status==="Stand by"?o.standby_motivo+(o.standby_por?" ("+(o.standby_por==="empresa"?"empresa":"GMAP")+(o.problema_nome?", "+o.problema_nome:"")+")":""):""],
   ["Justificativa da empresa",o.just],["Pendências ou problemas encontrados",o.pend],["O.S. assinada (PDF)",o.pdf||(o.comprovante_pendente&&o.status==="Atendida"?"Falta anexar (atendida pela planilha)":"")],["Motivo do cancelamento",o.motivo],
   ["Lançada na planilha como",o.chave_planilha?(o.numero_planilha||"")+(o.numero_planilha!==o.numero?" (número novo no sistema)":""):""],
   ["Solicitada por",o.solicitado_nome?o.solicitado_nome+" em "+dh(o.solicitado_em):""],["Aprovada por",o.aprovado_nome?o.aprovado_nome+" em "+dh(o.aprovado_em):""],
@@ -478,7 +478,7 @@ function openDet(k,lista){const o=find(k); if(!o) return; DET_ATUAL=String(o.id)
   if(lista) NAV=lista.map(String); else if(!NAV||!NAV.includes(String(o.id))) NAV=null;
   const pos=NAV?NAV.indexOf(String(o.id)):-1, nav=NAV&&NAV.length>1&&pos>=0;
   $("det").innerHTML=`<div class="dhead"><div><div class="mun">Ordem de serviço</div><h2>${esc(o.os)}</h2>
-   <span class="badge ${STB[o.status]}">${esc(o.status)}</span> ${PRE.includes(o.status)?"":`<span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span>`}</div>
+   <span class="badge ${STB[o.status]}">${esc(UI.rotStatus(o.status))}</span> ${PRE.includes(o.status)?"":`<span class="badge ${SPB[o.sp]}">${esc(o.sp)}</span>`}</div>
    <div class="dnav">${nav?`<button class="ib" id="dAnt" ${pos>0?"":"disabled"} data-tip="O.S. anterior (seta ←)" aria-label="O.S. anterior">${UI.icone("anterior")}</button>
      <span class="dpos" aria-live="polite">${nf(pos+1)} de ${nf(NAV.length)}</span>
      <button class="ib" id="dProx" ${pos<NAV.length-1?"":"disabled"} data-tip="Próxima O.S. (seta →)" aria-label="Próxima O.S.">${UI.icone("proxima")}</button>`:""}
@@ -541,7 +541,7 @@ function synth(L){
 }
 const NOTA_SINT="Total = Em aberto + Atendidas + Canceladas.";
 const ANH=["Nº O.S.","Empresa","Status","Em revisão","Prioridade","Emitida em","Prazo","Atendida em","Situação do prazo","Dias de atraso","Escola / entidade","INEP","GRE","Município","Serviço","Splits","Origem","Nº da origem","Processo SEI"];
-const anRow=o=>[o.os,EMPN[o.emp]||o.emp,o.status,o.revisao?"Sim":"",o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.origem?ORIG[o.origem]:"",o.origem_num||"",o.sei];
+const anRow=o=>[o.os,EMPN[o.emp]||o.emp,UI.rotStatus(o.status),o.revisao?"Sim":"",o.prio,fmt(o.criada),fmt(o.prazo),fmt(o.atend),o.sp,(o.atraso>0?o.atraso:""),o.escola,o.inep,o.gre,o.mun,o.serv.map(s=>SERVN[s]||s).join(", "),o.splits??"",o.origem?ORIG[o.origem]:"",o.origem_num||"",o.sei];
 function xlsx(name,sheets){const wb=XLSX.utils.book_new();sheets.forEach(([n,aoa])=>{const ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=aoa[Math.min(4,aoa.length-1)].map((_,i)=>({wch:Math.min(48,Math.max(10,...aoa.map(r=>String(r[i]??"").length+2)))}));XLSX.utils.book_append_sheet(wb,ws,n)});XLSX.writeFile(wb,name)}
 function exp(x){
   const L=filaList(), head=[["Painel de O.S. de Climatização · GMAP | SEDUC-PI"],[filterText()],["Situação em "+fmt(REF)+" · emitido em "+stamp()],[]];

@@ -4,6 +4,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.11.0] - 2026-11-25
+
+Requer a migração `supabase/migrations/014_problema_e_revisao.sql` (depois da 013).
+
+### Alterado
+- **"Stand by" passa a se chamar "Problema"** em todas as telas, filtros, relatórios e exportações. O valor no banco continua o mesmo (usado em várias regras), e o prazo continua correndo.
+- **Registrar problema** (empresa e GMAP): escolhe o tipo numa lista e detalha. Tipos iniciais:
+  - Atendida por serviço particular contratado pela entidade;
+  - Demanda já atendida em outra O.S.;
+  - Endereço não encontrado;
+  - Escola fechada ou sem acesso ao local;
+  - Responsável da entidade não autorizou o serviço;
+  - Falta de infraestrutura no local (energia, ponto elétrico, suporte);
+  - Equipamento não localizado ou já retirado;
+  - Dados da O.S. incorretos (serviço, quantidade ou ambiente);
+  - Outro problema (com descrição obrigatória).
+  A gerência edita a lista no **Modelo** ("Tipos de problema"). Quando a GMAP registra um problema, a empresa é avisada por e-mail; quando a GMAP marca como resolvido, também.
+- **Técnicos da GMAP editam O.S. em aberto** (antes só a gerência). O histórico registra cada campo alterado, com o valor anterior e o novo, e quem editou (gerência ou técnico).
+- **Revisão:** a gerência pode "Pedir revisão aos técnicos"; os técnicos continuam podendo sugerir correção. Técnicos e gerência concluem editando a O.S. ou encerram a revisão sem alterar, com motivo.
+- O.S. sem data de emissão (antigas da planilha) não quebram mais a tela de edição.
+
+### Adicionado
+- **Aba Aprovações: "Problemas informados"**, para a gerência e os técnicos, com o tipo, o detalhe, quem informou e quando. Ações: abrir, editar (corrigir a O.S.), marcar como resolvido e cancelar (só a gerência; o motivo e o detalhe já vêm sugeridos a partir do problema). O técnico pode **sugerir o cancelamento**, que vai para a revisão da gerência. Os problemas entram no contador da aba.
+- **Edição de O.S. antiga** (que veio da planilha) ou sem escola ligada à base: quadro "Dados atuais desta O.S." no topo do formulário, e a escola é sugerida pela base (pelo INEP, se só uma bater; senão, pelo nome).
+- Feed: "Registrou problema" e "Resolveu o problema", no tipo "Problema, cancelamento e revisão".
+
 ## [2.10.1] - 2026-11-25
 
 Só arquivos do site (sem migração).

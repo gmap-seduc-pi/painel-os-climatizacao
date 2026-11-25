@@ -82,7 +82,7 @@
   // Ícones (traço simples, herdam a cor do botão)
   const P = {
     atender: '<path d="M20 6 9 17l-5-5"/>', corrigir: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
-    desfazer: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', standby: '<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+    desfazer: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', standby: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
     retomar: '<path d="m6 4 14 8-14 8Z"/>', cancelar: '<circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/>',
     revisao: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', editar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
     manter: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>', aprovar: '<path d="M20 6 9 17l-5-5"/>', devolver: '<path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
@@ -243,5 +243,7 @@
     return new Blob([...partes, ...central, fim], { type: "application/zip" });
   }
 
-  window.UI = { aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
+  // nome do status na tela: "Stand by" passou a se chamar "Problema" (o valor no banco continua o mesmo)
+  const rotStatus = st => st === "Stand by" ? "Problema" : st;
+  window.UI = { rotStatus, aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
 })();

@@ -641,3 +641,7 @@ tr.cmpr>td{background:var(--soft);padding:0 10px 14px}
 /* 2.9.0 · recuperação de senha */
 .lok{color:var(--ok);font-size:13px;text-align:center}
 .lok:empty{display:none}
+/* 2.11.0 · dados atuais na edição de O.S. antiga */
+.datual dl{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;margin:6px 0}
+.datual dt{font-weight:600;color:var(--muted)}.datual dd{margin:0}
+@media (max-width:700px){.datual dl{grid-template-columns:1fr}.datual dt{margin-top:4px}}
