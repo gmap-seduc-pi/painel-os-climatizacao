@@ -1,5 +1,5 @@
 /* Painel de O.S. de Climatização · GMAP | SEDUC-PI
-   Módulo de emissão: nova O.S., aprovação da gerência, revisão, atendimento, stand by, cancelamento,
+   Módulo de emissão: nova O.S., aprovação da gerência, revisão, atendimento, problema (status "Stand by" no banco), cancelamento,
    empresas (área e e-mail), histórico e auditoria da base de entidades.
    Todas as regras são conferidas no banco; esta tela só oferece as ações que o perfil pode fazer. */
 window.iniciarEmissao = function (P) {
@@ -9,7 +9,7 @@ window.iniciarEmissao = function (P) {
   const EMPRESA = P.perfil.startsWith("emp:") ? P.perfil.slice(4) : null;
   const DIAS = { Urgente: 2, Alta: 10, Normal: 30 };
   const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
-  const somaDias = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  const somaDias = (iso, n) => { const d = new Date(String(iso || "").slice(0, 10) + "T12:00:00"); if (isNaN(d)) return ""; d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };   // data ausente (O.S. antiga): sem cálculo
   const quando = s => s ? new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
   const ha = s => { const h = Math.max(0, (Date.now() - new Date(s)) / 36e5); return h < 1 ? "há menos de 1 h" : h < 48 ? `há ${Math.floor(h)} h` : `há ${Math.floor(h / 24)} dias`; };
   const greCurta = g => String(g || "").replace(/^0?(\d+)ª - (.*)$/, (m, a, b) => a + "ª " + tc(b));
@@ -21,6 +21,7 @@ window.iniciarEmissao = function (P) {
   const soPlanilha = o => o.legado && planilhaAtiva();   // O.S. antiga, ainda atualizada pela planilha
   const aguardando = () => P.solic().filter(o => o.status === "Aguardando aprovação");
   const emRevisao = () => P.todos().filter(o => o.revisao);
+  const comProblema = () => P.todos().filter(o => o.status === "Stand by").sort((a, b) => String(a.problema_em || a.criada || "").localeCompare(String(b.problema_em || b.criada || "")));
 
   // ---------- avisos e diálogos ----------
   function aviso(msg, tipo) {
@@ -100,7 +101,7 @@ window.iniciarEmissao = function (P) {
     const sc = semComprovante().filter(o => !EMPRESA || o.emp === EMPRESA);
     if ((GMAP || EMPRESA) && sc.length) itens.push({ v: sc.length, l: "Sem a O.S. assinada", h: EMPRESA ? "atendidas pela planilha: anexe o PDF" : "atendidas pela planilha, aguardando o PDF", c: "warn", go: () => P.verFila({ semComp: 1 }) });
     if (GMAP && observando()) { const pn = pendAbertas(); itens.push({ v: pn.length, l: "Lançamentos na planilha", h: pn.length ? `${pn.filter(x => x.tipo === "nova").length} O.S. novas · ${pn.filter(x => x.tipo === "mudanca").length} mudanças` : "nada a conferir", c: pn.length ? "warn" : "", go: () => P.setView("planilha") }); }
-    itens.push({ v: sb_.length, l: "Em stand by", h: "o prazo continua correndo", c: sb_.length ? "warn" : "", go: () => P.verFila({ status: "Stand by" }) });
+    itens.push({ v: sb_.length, l: "Com problema", h: EQUIPE ? "informado pela empresa ou pela GMAP" : "o prazo continua correndo", c: sb_.length ? "warn" : "", go: () => EQUIPE ? P.setView("aprov") : P.verFila({ status: "Stand by" }) });
     $("hoje").innerHTML = (EQUIPE && planilhaAtiva() ? `<div class="faixa info fase"><b>Fase planilha.</b> As O.S. continuam sendo emitidas e atualizadas na planilha geral e chegam aqui pela sincronização. A emissão pelo sistema será ativada na virada; até lá, já dá para cadastrar empresas, preparar o modelo e aprovar os técnicos.</div>` : "") + itens.map((x, i) => `<button class="hj ${x.c}${x.v ? "" : " zero"}" data-i="${i}" title="${esc(x.l + ": " + x.h)}"><b>${nf(x.v)}</b><span>${x.l}</span><small>${esc(x.h)}</small></button>`).join("");
     $("hoje").querySelectorAll(".hj").forEach(b => b.onclick = () => itens[+b.dataset.i].go());
   }
@@ -138,7 +139,8 @@ window.iniciarEmissao = function (P) {
   function contarAprov() {
     const tp = document.querySelector('.tab[data-v="planilha"]'); if (tp) { const n = pendAbertas().length + (GMAP ? semComprovante().length : 0); tp.innerHTML = "Planilha" + (n ? `<span class="cnt">${n}</span>` : ""); }
     const t = document.querySelector('.tab[data-v="aprov"]'); if (!t) return;
-    const n = GMAP ? aguardando().length + emRevisao().length : P.solic().filter(o => o.solicitado_por === CTX.uid && o.status === "Devolvida").length;
+    const nProb = EQUIPE ? comProblema().length : 0;
+    const n = (GMAP ? aguardando().length + emRevisao().length : P.solic().filter(o => o.solicitado_por === CTX.uid && o.status === "Devolvida").length + (TEC ? emRevisao().length : 0)) + nProb;
     t.innerHTML = "Aprovações" + (n ? `<span class="cnt">${n}</span>` : "");
   }
 
@@ -200,10 +202,27 @@ window.iniciarEmissao = function (P) {
     else el.value = v;
   }
 
+  // edição de O.S. antiga (veio da planilha) ou sem escola ligada à base: mostra os dados atuais como referência
+  function dadosAtuais(o) {
+    const L = [["Escola / entidade", o.escola], ["INEP", o.inep], ["Município", o.mun], ["Endereço", o.end], ["Serviço", o.desc], ["Qtd. de splits", o.splits], ["Descrição / observações", o.obs]]
+      .filter(x => x[1] != null && String(x[1]).trim() !== "");
+    return `<div class="faixa info datual"><b>Dados atuais desta O.S.</b>${o.legado ? " (veio da planilha geral; alguns campos do formulário não existiam nela)" : ""}:
+      <dl>${L.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(String(v))}</dd>`).join("")}</dl>
+      <div class="mun">Use estes dados para preencher o formulário abaixo. O que mudar fica registrado no histórico, com o valor anterior e o novo.</div></div>`;
+  }
+  // sugere a escola da base: pelo INEP (se só uma bater, já seleciona) ou pelo começo do nome
+  function sugerirEntidade(o) {
+    const busca = $("nEnt"); if (!busca || F.ent) return;
+    const inep = String(o.inep || "").replace(/\D/g, "");
+    const porInep = inep.length >= 6 ? ents().filter(e => e.ativo && String(e.inep || "").replace(/\D/g, "") === inep) : [];
+    if (porInep.length === 1) { F.ent = porInep[0]; mostrarEnt(); const s = $("nEntSel"); if (s) s.insertAdjacentHTML("beforeend", '<div class="mun">Escola encontrada na base pelo INEP da O.S. Confira antes de salvar.</div>'); return; }
+    const nome = String(o.escola || "").split(/[\/(\-–]/)[0].trim().split(/\s+/).slice(0, 4).join(" ");
+    if (nome.length >= 3) { busca.value = nome; busca.oninput && busca.oninput(); }
+  }
   function renderNova(arg) {
     if (!EQUIPE) return;
     const modo = arg && arg.modo || "nova", o = arg && arg.o, pend = arg && arg.pend;
-    if (modo === "editar" && !GMAP) return;
+    if (modo === "editar" && !EQUIPE) return;
     const m = MOD();
     let ini = o ? dadosDe(o) : pend ? dadosDaPlanilha(pend) : null, recuperado = null;
     if (modo === "nova" && rascunho) { ini = rascunho.dados; recuperado = rascunho.salvo_em; }
@@ -218,7 +237,9 @@ window.iniciarEmissao = function (P) {
     $("v-nova").innerHTML = `<div class="card form" id="fNova">
       <h3>${esc(tit)}</h3><div class="d">${exp}</div>
       ${recuperado ? `<div class="faixa info" id="nRascAviso"><b>Rascunho recuperado</b> (salvo em ${quando(recuperado)}). Continue de onde parou. <button type="button" class="lnk" id="nRascDesc">Descartar rascunho</button></div>` : ""}
-      ${o && o.revisao ? `<div class="faixa rev"><b>Sugestão da revisão (${esc(o.revisao_nome || "GMAP")}):</b> ${esc(o.revisao_sugestao || "")}</div>` : ""}
+      ${o && o.revisao ? `<div class="faixa rev"><b>${o.revisao_perfil === "gmap" ? "Pedido da gerência" : "Sugestão da revisão"} (${esc(o.revisao_nome || "GMAP")}):</b> ${esc(o.revisao_sugestao || "")}</div>` : ""}
+      ${o && modo === "editar" && o.status === "Stand by" ? `<div class="faixa warn"><b>Problema informado:</b> ${esc(o.standby_motivo || "")}. Corrigir a O.S. não resolve o problema sozinho: depois de salvar, marque "Problema resolvido" se for o caso.</div>` : ""}
+      ${o && modo === "editar" && (o.legado || !o.entidade_id) ? dadosAtuais(o) : ""}
       ${o && o.status === "Devolvida" ? `<div class="faixa bad"><b>Devolvida pela gerência:</b> ${esc(o.devolucao_obs || "")}</div>` : ""}
       ${pend ? `<div class="faixa info"><b>Na planilha:</b> ${esc(pend.numero)} · ${esc(EMPN[pend.empresa] || pend.empresa)} · ${esc(tc(pend.dados.escola || ""))} (INEP ${esc(pend.dados.inep || "não informado")}) · ${esc(pend.dados.prioridade || "")} · ${esc(pend.dados.descricao || "")}${pend.dados.splits != null ? " · " + pend.dados.splits + " splits" : ""}${pend.dados.id_sei ? " · SEI " + esc(pend.dados.id_sei) : ""}${pend.dados.observacoes ? `<div class="mun">${esc(pend.dados.observacoes)}</div>` : ""}${!ini.entidade_id ? `<div><b>Escola não encontrada na base pelo INEP: escolha abaixo.</b></div>` : ""}</div>` : ""}
       <div class="fgrid">
@@ -249,6 +270,7 @@ window.iniciarEmissao = function (P) {
         <button type="button" class="btn pri" id="nEnv">${modo === "editar" ? "Salvar alterações" : modo === "reenviar" ? "Reenviar para aprovação" : modo === "importar" ? (GMAP ? "Importar e emitir" : "Importar e enviar para aprovação") : GMAP ? "Emitir O.S." : "Enviar para aprovação"}</button></div></div>`;
     // busca da entidade
     const busca = $("nEnt"), res = $("nEntRes");
+    if (modo === "editar" && o && !F.ent) setTimeout(() => sugerirEntidade(o), 0);
     busca.oninput = () => {
       const q = norm(busca.value); if (q.length < 2) { res.hidden = true; return; }
       const termos = q.split(/\s+/);
@@ -368,7 +390,7 @@ window.iniciarEmissao = function (P) {
   function mostrarPrazo() {
     const p = (document.querySelector('input[name="nPrio"]:checked') || {}).value;
     if (!p) { $("nPrazo").textContent = "Urgente: 2 dias · Alta: 10 dias · Normal: 30 dias (corridos)."; return; }
-    $("nPrazo").textContent = F.modo === "editar" ? `Novo prazo: ${fmt(somaDias(F.o.criada, DIAS[p]))} (${DIAS[p]} dias corridos desde a emissão).`
+    $("nPrazo").textContent = F.modo === "editar" ? (F.o.criada ? `Novo prazo: ${fmt(somaDias(F.o.criada, DIAS[p]))} (${DIAS[p]} dias corridos desde a emissão).` : "Esta O.S. não tem data de emissão: o prazo não é recalculado.")
       : `O prazo conta a partir da aprovação. Se aprovada hoje, vence em ${fmt(somaDias(REF, DIAS[p]))}.`;
   }
   function mostrarOrig() {
@@ -384,7 +406,7 @@ window.iniciarEmissao = function (P) {
     if (!abertas.length) { $("nDup").innerHTML = ""; return; }
     const mesmas = abertas.filter(o => !serv.length || o.serv.some(s => serv.includes(s)));
     $("nDup").innerHTML = `<div class="faixa ${mesmas.length ? "warn" : ""}"><b>${abertas.length} O.S. em aberto nesta entidade${mesmas.length && serv.length ? `, ${mesmas.length} com o mesmo tipo de serviço` : ""}.</b> Confira antes de emitir para evitar duplicidade:
-      <ul>${abertas.slice(0, 5).map(o => `<li>${esc(o.os)} · ${esc(EMPN[o.emp] || o.emp)} · ${esc(o.status)} · ${esc(o.serv.map(s => SERVN[s] || s).join(", "))}${o.criada ? " · emitida em " + fmt(o.criada) : ""}</li>`).join("")}</ul></div>`;
+      <ul>${abertas.slice(0, 5).map(o => `<li>${esc(o.os)} · ${esc(EMPN[o.emp] || o.emp)} · ${esc(UI.rotStatus(o.status))} · ${esc(o.serv.map(s => SERVN[s] || s).join(", "))}${o.criada ? " · emitida em " + fmt(o.criada) : ""}</li>`).join("")}</ul></div>`;
   }
   // confere tudo de uma vez e devolve a lista do que falta, com o campo a destacar
   function conferir(d, modo) {
@@ -459,7 +481,7 @@ window.iniciarEmissao = function (P) {
     const dup = P.todos().filter(x => ["Emitida", "Stand by"].includes(x.status) && (x.entidade_id === o.entidade_id) && x.serv.some(s => o.serv.includes(s)));
     return `<div class="sol ${o.fora_area ? "fora" : ""}" data-id="${o.id}">
       <div class="solh">${acoes && GMAP && o.status === "Aguardando aprovação" ? `<input type="checkbox" class="selA" ${selAprov.has(o.id) ? "checked" : ""} aria-label="Selecionar ${esc(o.os)}">` : ""}
-        <b>${esc(o.os)}</b> <span class="badge ${STB[o.status]}">${esc(o.status)}</span> <span class="badge ${PRB[o.prio] || "b-gray"}">${esc(o.prio)}</span>
+        <b>${esc(o.os)}</b> <span class="badge ${STB[o.status]}">${esc(UI.rotStatus(o.status))}</span> <span class="badge ${PRB[o.prio] || "b-gray"}">${esc(o.prio)}</span>
         <span class="mun">por ${esc(o.solicitado_nome || "")} · ${ha(o.solicitado_em)}</span></div>
       <div class="esc">${esc(tc(o.escola || ""))}</div>
       <div class="mun">${esc(tc(o.mun || ""))} · ${esc(greCurta(o.gre))}${e && e.tipo !== "escola" ? " · " + esc(e.tipologia) : ""}</div>
@@ -483,13 +505,7 @@ window.iniciarEmissao = function (P) {
         ${ag.length ? `<div class="acoes"><label class="mun"><input type="checkbox" id="selTodas"> marcar todas</label><button class="btn ok" id="aprLote" ${selAprov.size ? "" : "disabled"}>Aprovar selecionadas (${selAprov.size})</button></div>` : ""}</div>
         <div class="d">Ao aprovar, a O.S. recebe o número, o prazo começa a contar e a empresa é avisada por e-mail. As mais antigas aparecem primeiro.</div>
         ${ag.length ? ag.map(o => cartaoSolic(o, ACOES_G)).join("") : '<div class="empty">Nenhuma solicitação aguardando aprovação.</div>'}</div>`;
-      const rev = emRevisao();
-      h += `<div class="card"><h3>Em revisão (${rev.length})</h3><div class="d">O.S. emitidas que um técnico pediu para corrigir. Ficam fora das contagens e a empresa não consegue registrar atendimento até a revisão terminar.</div>
-        ${rev.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Sugestão</th><th></th></tr></thead><tbody>${rev.map(o => `<tr data-id="${o.id}">
-          <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
-          <td class="ev">${esc(o.revisao_sugestao || "")}<div class="mun">${esc(o.revisao_nome || "")} · ${ha(o.revisao_em)}</div></td>
-          <td><div class="acoes"><button class="btn pri" data-a="editar">Editar O.S.</button><button class="btn" data-a="manter">Manter dados</button></div></td></tr>`).join("")}</tbody></table></div>`
-        : '<div class="empty">Nenhuma O.S. em revisão.</div>'}</div>`;
+      h += cartaoProblemas() + cartaoRevisao();
     } else {
       const dev = S.filter(o => o.status === "Devolvida" && o.solicitado_por === CTX.uid), rev = emRevisao();
       const minha = o => o.solicitado_por === CTX.uid;
@@ -497,10 +513,7 @@ window.iniciarEmissao = function (P) {
         ${dev.length ? dev.map(o => cartaoSolic(o, `<button class="btn pri" data-a="reenviar">Corrigir e reenviar</button>`)).join("") : '<div class="empty">Nenhuma solicitação devolvida para você.</div>'}</div>
         <div class="card"><h3>Aguardando aprovação da gerência (${ag.length})</h3><div class="d">Todas as solicitações da equipe, das mais antigas para as mais novas. Nas suas, você ainda pode corrigir enquanto aguardam.</div>
         ${ag.length ? ag.map(o => cartaoSolic(o, minha(o) ? `<span class="badge b-info">sua</span><button class="btn" data-a="reenviar">Corrigir</button>` : "")).join("") : '<div class="empty">Nenhuma solicitação aguardando aprovação.</div>'}</div>
-        <div class="card"><h3>Em revisão (${rev.length})</h3><div class="d">O.S. emitidas com correção sugerida, aguardando a gerência. Toque para ver.</div>
-        ${rev.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Sugestão</th></tr></thead><tbody>${rev.map(o => `<tr class="r" data-id="${o.id}">
-          <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
-          <td class="ev">${esc(o.revisao_sugestao || "")}<div class="mun">${esc(o.revisao_nome || "")} · ${ha(o.revisao_em)}</div></td></tr>`).join("")}</tbody></table></div>` : '<div class="empty">Nenhuma O.S. em revisão.</div>'}</div>`;
+        ${cartaoProblemas()}${cartaoRevisao()}`;
     }
     const rec = S.filter(o => o.status === "Recusada" && (GMAP || o.solicitado_por === CTX.uid));
     const devG = GMAP ? S.filter(o => o.status === "Devolvida") : [];
@@ -514,6 +527,13 @@ window.iniciarEmissao = function (P) {
       if (a === "reenviar") return P.setView("nova", { modo: "reenviar", o });
       if (a === "editar") return P.setView("nova", { modo: "editar", o });
       if (a === "manter") return acaoManter(o);
+      if (a === "abrir") return P.openDet(o.id, [...$("v-aprov").querySelectorAll(".probs tr[data-id]")].map(x => x.dataset.id));
+      if (a === "resolver") return acao(o, "retomar");
+      if (a === "canc") return cancelarComo(o, motivoCancDoProblema(o), `Problema informado: ${o.standby_motivo || ""}`);
+      if (a === "sugcanc") return dialogo({ titulo: `Sugerir o cancelamento da O.S. ${o.os}`, botao: "Enviar sugestão à gerência",
+        texto: "Só a gerência cancela O.S. A sugestão vai para a revisão, com o problema informado, e a gerência decide.",
+        campos: [{ id: "sug", rot: "Por que cancelar", tipo: "textarea", obrig: true, min: 10, valor: `Sugiro cancelar. Problema: ${o.standby_motivo || ""}` }],
+        enviar: async v => { const r = await rpc("os_revisao", { p_id: o.id, p_sugestao: v.sug }); if (r.erro) return r.erro; await P.recarregar(); aviso("Sugestão de cancelamento enviada à gerência.", "ok"); return null; } });
       decidir(o, a);
     });
     $("v-aprov").querySelectorAll("tr.r[data-id]").forEach(tr => tr.onclick = () => P.openDet(tr.dataset.id, [...$("v-aprov").querySelectorAll("tr.r[data-id]")].map(x => x.dataset.id)));
@@ -530,6 +550,49 @@ window.iniciarEmissao = function (P) {
           return falhas.length ? falhas.join(" | ") : null;
         } });
     };
+  }
+  // problemas informados (status "Stand by" no banco): a equipe trata corrigindo a O.S., resolvendo ou cancelando
+  function cartaoProblemas() {
+    const L = comProblema();
+    const ib = (a, ic, t, c) => UI.botaoIcone(ic, t, c).replace(`data-acao="${ic}"`, `data-a="${a}"`);
+    return `<div class="card probs"><h3>Problemas informados (${L.length})</h3><div class="d">O.S. em que a empresa ou a GMAP registrou um problema. O prazo continua correndo. Para tratar: corrija a O.S. (editar), marque o problema como resolvido ou ${GMAP ? "cancele" : "sugira o cancelamento à gerência"}.</div>
+      ${L.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>Problema</th><th></th></tr></thead><tbody>${L.map(o => `<tr data-id="${o.id}">
+        <td><b>${esc(o.os)}</b><div class="mun">${o.sp ? esc(o.sp) : ""}</div></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
+        <td class="ev"><b>${esc(o.problema_tipo && o.problema_tipo !== "Outro problema" ? o.problema_tipo : "Outro problema")}</b><div>${esc(o.problema_tipo && o.problema_tipo !== "Outro problema" ? String(o.standby_motivo || "").replace(o.problema_tipo, "").replace(/^:\s*/, "") : o.standby_motivo || "")}</div>
+          <div class="mun">${o.standby_por === "empresa" ? "Empresa" : "GMAP"}${o.problema_nome ? " · " + esc(o.problema_nome) : ""}${o.problema_em ? " · " + ha(o.problema_em) : ""}</div></td>
+        <td><div class="acoes pacoes">${ib("abrir", "abrir", "Abrir a O.S.")}${ib("editar", "editar", "Editar (corrigir a O.S.)", "pri")}${ib("resolver", "retomar", "Problema resolvido (retomar)")}${GMAP ? ib("canc", "cancelar", "Cancelar a O.S.", "no") : (o.revisao ? "" : ib("sugcanc", "revisao", "Sugerir cancelamento à gerência"))}</div></td></tr>`).join("")}</tbody></table></div>`
+      : '<div class="empty">Nenhum problema informado.</div>'}</div>`;
+  }
+  function cartaoRevisao() {
+    const rev = emRevisao();
+    return `<div class="card revs"><h3>Em revisão (${rev.length})</h3><div class="d">O.S. que a gerência pediu para os técnicos corrigirem, ou com correção sugerida por um técnico. Ficam fora das contagens e a empresa não consegue registrar atendimento até a revisão terminar. Técnicos e gerência corrigem editando a O.S. ou encerram sem alterar.</div>
+      ${rev.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Escola</th><th>Empresa</th><th>O que verificar</th><th></th></tr></thead><tbody>${rev.map(o => `<tr data-id="${o.id}">
+        <td><b>${esc(o.os)}</b></td><td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
+        <td class="ev">${o.revisao_perfil === "gmap" ? '<span class="badge b-rev">pedido da gerência</span> ' : '<span class="badge b-gray">sugestão de técnico</span> '}${esc(o.revisao_sugestao || "")}<div class="mun">${esc(o.revisao_nome || "")} · ${ha(o.revisao_em)}</div></td>
+        <td><div class="acoes"><button class="btn pri" data-a="editar">Editar O.S.</button><button class="btn" data-a="manter">Encerrar sem alterar</button></div></td></tr>`).join("")}</tbody></table></div>`
+      : '<div class="empty">Nenhuma O.S. em revisão.</div>'}</div>`;
+  }
+  // registrar problema: tipo da lista do Modelo + detalhe (obrigatório em "Outro problema")
+  function registrarProblema(o) {
+    const tipos = ativos(MOD().problemas || []).concat(["Outro problema"]);
+    return dialogo({ titulo: `Registrar problema na O.S. ${o.os}`, botao: "Registrar problema",
+      texto: (EMPRESA ? "Use quando algo impede ou dispensa o atendimento. A GMAP é avisada e decide: corrigir a O.S., marcar como resolvido ou cancelar."
+        : "A empresa é avisada por e-mail. Depois, trate o problema: corrija a O.S., marque como resolvido ou cancele.") + " <b>O prazo continua correndo.</b>",
+      campos: [{ id: "tipo", rot: "Tipo de problema", tipo: "select", opcoes: tipos, obrig: true },
+        { id: "det", rot: "Detalhe", tipo: "textarea", dica: "Obrigatório em \"Outro problema\". Nos demais, ajuda a GMAP a decidir (ex.: quem informou, data, número da outra O.S.)." }],
+      enviar: async v => {
+        if (v.tipo === "Outro problema" && (v.det || "").trim().length < 10) return "Descreva o problema (mínimo de 10 caracteres).";
+        let r = await rpc("os_problema", { p_id: o.id, p_tipo: v.tipo, p_detalhe: v.det || null });
+        // banco ainda sem a migração 014: registra pelo caminho antigo, com o tipo no texto
+        if (r.erro && /function|schema cache|does not exist/i.test(r.erro)) r = await rpc("os_standby", { p_id: o.id, p_motivo: v.tipo === "Outro problema" ? v.det : v.tipo + (v.det ? ": " + v.det : "") });
+        if (r.erro) return r.erro;
+        await depois(o, "Problema registrado."); return null;
+      } });
+  }
+  // motivo de cancelamento sugerido a partir do tipo de problema (a pessoa pode trocar)
+  function motivoCancDoProblema(o) {
+    const t = String(o.problema_tipo || o.standby_motivo || "");
+    return /particular|terceir/i.test(t) ? /particular|terceir|atendid/i : /outra O\.S\.|duplic/i.test(t) ? /duplicad/i : null;
   }
   function decidir(o, a) {
     const cfg = {
@@ -560,9 +623,9 @@ window.iniciarEmissao = function (P) {
     if (o.status === "Aguardando aprovação") f.push(`<div class="faixa warn"><b>Aguardando aprovação da gerência.</b> Solicitada por ${esc(o.solicitado_nome || "")} ${ha(o.solicitado_em)}. Ainda sem número e sem prazo.</div>`);
     if (o.status === "Devolvida") f.push(`<div class="faixa bad"><b>Devolvida para correção:</b> ${esc(o.devolucao_obs || "")}</div>`);
     if (o.status === "Recusada") f.push(`<div class="faixa"><b>Recusada:</b> ${esc(o.devolucao_obs || "")}</div>`);
-    if (o.revisao) f.push(EQUIPE ? `<div class="faixa rev"><b>Em revisão.</b> Sugestão de ${esc(o.revisao_nome || "")}: ${esc(o.revisao_sugestao || "")}. Fora das contagens até a gerência concluir.</div>`
+    if (o.revisao) f.push(EQUIPE ? `<div class="faixa rev"><b>Em revisão.</b> ${o.revisao_perfil === "gmap" ? "Pedido da gerência" : "Sugestão"} de ${esc(o.revisao_nome || "")}: ${esc(o.revisao_sugestao || "")}. Fora das contagens até a GMAP corrigir (editar) ou encerrar a revisão.</div>`
       : `<div class="faixa rev"><b>Em revisão pela GMAP.</b> Os dados desta O.S. podem mudar. Aguarde a revisão para registrar o atendimento.</div>`);
-    if (o.status === "Stand by") f.push(`<div class="faixa warn"><b>Stand by (${o.standby_por === "empresa" ? "pendência informada pela empresa" : "depende da SEDUC"}):</b> ${esc(o.standby_motivo || "")}. O prazo continua correndo.</div>`);
+    if (o.status === "Stand by") f.push(`<div class="faixa warn"><b>Problema informado pela ${o.standby_por === "empresa" ? "empresa" : "GMAP"}${o.problema_nome ? " (" + esc(o.problema_nome) + (o.problema_em ? ", " + ha(o.problema_em) : "") + ")" : ""}:</b> ${esc(o.standby_motivo || "")}. O prazo continua correndo.${EQUIPE ? " Para tratar: corrija a O.S. (editar), marque o problema como resolvido ou, se for o caso, cancele." : o.standby_por === "empresa" ? " A GMAP vai analisar." : ""}</div>`);
     if (o.comprovante_pendente && o.status === "Atendida") f.push(`<div class="faixa warn comp"><b>Falta a O.S. assinada.</b> O atendimento veio da planilha geral e foi registrado no sistema sem o PDF.
       ${GMAP || (EMPRESA && o.emp === EMPRESA) ? `<div class="solb"><button type="button" class="btn pri" data-acao="anexar">Anexar O.S. assinada</button></div>` : ""}</div>`);
     const pm = GMAP && pendDaOS(o);
@@ -582,18 +645,18 @@ window.iniciarEmissao = function (P) {
     if (soPlanilha(o)) return h.join("");
     if (EMPRESA && o.emp === EMPRESA) {
       if (aberta && !o.revisao) h.push(b("atender", "Registrar atendimento", "pri"));
-      if (s === "Emitida" && !o.revisao) h.push(b("standby", "Informar pendência (stand by)"));
-      if (s === "Stand by" && o.standby_por === "empresa") h.push(b("retomar", "Retomar"));
+      if (s === "Emitida" && !o.revisao) h.push(b("standby", "Informar problema"));
+      if (s === "Stand by" && o.standby_por === "empresa") h.push(b("retomar", "Problema resolvido (retomar)"));
       if (s === "Atendida") { h.push(b("corrigir", "Corrigir atendimento")); if (o.atendido_por === CTX.uid) h.push(b("desfazer", "Desfazer atendimento", "no")); }
     }
     if (EQUIPE) {
       if (s === "Aguardando aprovação" && GMAP) h.push(b("aprovar", "Aprovar e emitir", "ok"), b("devolver", "Devolver para correção"), b("recusar", "Recusar", "no"));
       if (["Aguardando aprovação", "Devolvida"].includes(s) && o.solicitado_por === CTX.uid) h.push(b("reenviar", s === "Devolvida" ? "Corrigir e reenviar" : "Corrigir solicitação", "pri"));
-      if (aberta && GMAP) h.push(b("editar", "Editar O.S.", o.revisao ? "pri" : ""));
-      if (aberta && GMAP && o.revisao) h.push(b("manter", "Encerrar revisão sem alterar"));
-      if (aberta && !o.revisao) h.push(b("revisao", GMAP ? "Marcar em revisão" : "Sugerir correção (revisão)"));
-      if (s === "Emitida") h.push(b("standby", "Stand by (depende da SEDUC)"));
-      if (s === "Stand by") h.push(b("retomar", "Retomar"));
+      if (aberta) h.push(b("editar", "Editar O.S.", o.revisao || s === "Stand by" ? "pri" : ""));
+      if (aberta && o.revisao) h.push(b("manter", "Encerrar revisão sem alterar"));
+      if (aberta && !o.revisao) h.push(b("revisao", GMAP ? "Pedir revisão aos técnicos" : "Sugerir correção (revisão)"));
+      if (s === "Emitida") h.push(b("standby", "Registrar problema"));
+      if (s === "Stand by") h.push(b("retomar", "Problema resolvido (retomar)"));
       if (aberta && GMAP) h.push(b("cancelar", "Cancelar O.S.", "no"));
       if (s === "Atendida" && (GMAP || o.atendido_por === CTX.uid)) h.push(b("desfazer", "Desfazer atendimento", "no"));
     }
@@ -660,13 +723,11 @@ window.iniciarEmissao = function (P) {
       texto: "A O.S. volta para Emitida e o prazo original continua valendo. O atendimento desfeito fica no histórico.",
       campos: [{ id: "just", rot: "Justificativa", tipo: "textarea", obrig: true, min: 10 }],
       enviar: async v => ok("Atendimento desfeito.")(await rpc("os_desfazer_atendimento", { p_id: o.id, p_just: v.just })) });
-    if (a === "standby") return dialogo({ titulo: `Colocar a O.S. ${o.os} em stand by`, botao: "Colocar em stand by",
-      texto: EMPRESA ? "Use quando uma pendência impede o atendimento (ex.: escola fechada, falta de ponto elétrico). <b>O prazo não para.</b>" : "Use quando o atendimento depende só da SEDUC. <b>O prazo não para.</b>",
-      campos: [{ id: "motivo", rot: "Qual é a pendência", tipo: "textarea", obrig: true, min: 10 }],
-      enviar: async v => ok("O.S. em stand by.")(await rpc("os_standby", { p_id: o.id, p_motivo: v.motivo })) });
-    if (a === "retomar") return dialogo({ titulo: `Retomar a O.S. ${o.os}`, botao: "Retomar", texto: "A O.S. volta para Emitida.",
-      campos: [{ id: "obs", rot: "Observação (opcional)", tipo: "textarea", linhas: 2 }],
-      enviar: async v => ok("O.S. retomada.")(await rpc("os_retomar", { p_id: o.id, p_obs: v.obs })) });
+    if (a === "standby") return registrarProblema(o);
+    if (a === "retomar") return dialogo({ titulo: `Problema resolvido: retomar a O.S. ${o.os}`, botao: "Problema resolvido",
+      texto: `Problema informado: ${esc(o.standby_motivo || "")}.<br>A O.S. volta a ficar em aberto.${EMPRESA ? "" : " A empresa é avisada por e-mail."}`,
+      campos: [{ id: "obs", rot: "Como foi resolvido (opcional)", tipo: "textarea", linhas: 2 }],
+      enviar: async v => ok("Problema resolvido: O.S. em aberto de novo.")(await rpc("os_retomar", { p_id: o.id, p_obs: v.obs })) });
     if (a === "cancelar") return dialogo({ titulo: `Cancelar a O.S. ${o.os}`, perigo: true, botao: "Cancelar O.S.",
       texto: "O cancelamento não pode ser desfeito. A empresa é avisada por e-mail.",
       campos: [{ id: "motivo", rot: "Motivo", tipo: "select", opcoes: ativos(MOD().motivos_cancelamento).concat(["Outro motivo"]), obrig: true },
@@ -675,14 +736,14 @@ window.iniciarEmissao = function (P) {
         if (v.motivo === "Outro motivo" && (v.texto || "").length < 10) return "Descreva o motivo (mínimo de 10 caracteres).";
         return ok(`O.S. ${o.os} cancelada.`)(await rpc("os_cancelar", { p_id: o.id, p_motivo: v.motivo, p_texto: v.texto }));
       } });
-    if (a === "revisao") return dialogo({ titulo: `Colocar a O.S. ${o.os} em revisão`, botao: "Marcar em revisão",
-      texto: "A O.S. sai das contagens e a empresa não consegue registrar atendimento até a gerência concluir a revisão. A empresa vê só que a O.S. está em revisão.",
-      campos: [{ id: "sug", rot: "Correção sugerida", tipo: "textarea", obrig: true, min: 10, dica: "Diga o que está errado e qual é o valor certo." }],
-      enviar: async v => ok("O.S. em revisão. A gerência vai analisar.")(await rpc("os_revisao", { p_id: o.id, p_sugestao: v.sug })) });
+    if (a === "revisao") return dialogo({ titulo: GMAP ? `Pedir revisão da O.S. ${o.os} aos técnicos` : `Sugerir correção da O.S. ${o.os}`, botao: GMAP ? "Pedir revisão" : "Sugerir correção",
+      texto: "A O.S. sai das contagens e a empresa não consegue registrar atendimento até a revisão terminar. A empresa vê só que a O.S. está em revisão. Os técnicos e a gerência corrigem (editando) ou encerram a revisão sem alterar.",
+      campos: [{ id: "sug", rot: GMAP ? "O que os técnicos devem verificar e corrigir" : "Correção sugerida", tipo: "textarea", obrig: true, min: 10, dica: "Diga o que está errado e, se souber, qual é o valor certo." }],
+      enviar: async v => ok("O.S. em revisão. A equipe da GMAP vai corrigir.")(await rpc("os_revisao", { p_id: o.id, p_sugestao: v.sug })) });
   }
   const PERFIL_NOME = { gmap: "Gerência GMAP", tecnico: "Técnico GMAP", consultivo: "Consultivo", diretoria: "Diretoria", empresa: "Empresa" };
   const ACAO = { "atualizada pela planilha": "Atualizada pela planilha", "importou da planilha": "Importou da planilha", "aplicou mudança da planilha": "Aplicou no sistema a mudança da planilha", "manteve o sistema": "Manteve o sistema (mudança da planilha)", "anexou a O.S. assinada": "Anexou a O.S. assinada", "solicitou": "Solicitou a emissão", "reenviou": "Corrigiu e reenviou", "aprovou": "Aprovou e emitiu", "emitiu": "Emitiu", "devolveu": "Devolveu para correção", "recusou": "Recusou",
-    "registrou atendimento": "Registrou o atendimento", "corrigiu atendimento": "Corrigiu o atendimento", "desfez atendimento": "Desfez o atendimento", "colocou em stand by": "Colocou em stand by",
+    "registrou atendimento": "Registrou o atendimento", "corrigiu atendimento": "Corrigiu o atendimento", "desfez atendimento": "Desfez o atendimento", "colocou em stand by": "Registrou problema (stand by)", "registrou problema": "Registrou problema", "resolveu o problema": "Problema resolvido",
     "retomou": "Retomou", "cancelou": "Cancelou", "colocou em revisão": "Colocou em revisão", "em revisão": "Em revisão pela GMAP", "revisão concluída": "Revisão concluída",
     "encerrou revisão sem alterar": "Encerrou a revisão sem alterar", "editou": "Editou a O.S.", "atualizou dados da escola": "Atualizou os dados da escola pela base" };
   async function historico(o) {
@@ -786,7 +847,7 @@ window.iniciarEmissao = function (P) {
       R.map(e => `<tr>${ent(e).map((v, i) => `<td>${i ? v : `<div class="esc">${v}</div>`}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
     const tabOS = (R, ev) => `<div class="tbl" style="max-height:55vh"><table><thead><tr>${audE === "div" && GMAP ? '<th><input type="checkbox" id="selEAll"></th>' : ""}<th>Nº O.S.</th><th>Empresa</th><th>Escola na O.S.</th><th>Status</th><th>${audE === "div" ? "Diferenças (O.S. → base)" : "Detalhe"}</th></tr></thead><tbody>${
       R.map(o => `<tr class="r" data-os="${o.id}">${audE === "div" && GMAP ? `<td><input type="checkbox" class="selE" ${selE.has(o.id) ? "checked" : ""}></td>` : ""}<td><b>${esc(o.os)}</b></td><td>${esc(EMPN[o.emp] || o.emp)}</td>
-        <td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td><span class="badge ${STB[o.status]}">${esc(o.status)}</span></td><td class="ev">${ev(o)}</td></tr>`).join("")}</tbody></table></div>`;
+        <td><div class="esc">${esc(tc(o.escola || ""))}</div><div class="mun">${esc(tc(o.mun || ""))}</div></td><td><span class="badge ${STB[o.status]}">${esc(UI.rotStatus(o.status))}</span></td><td class="ev">${ev(o)}</td></tr>`).join("")}</tbody></table></div>`;
     let corpo = "";
     if (audE === "div") corpo = diverg.length ? tabOS(diverg, o => difs(o).map(([r, a, b]) => `<div><b>${r}:</b> ${esc(a || "(vazio)")} → <span class="novo">${esc(b || "(vazio)")}</span></div>`).join("")) : "";
     else if (audE === "rem") corpo = removidas.length ? tabOS(removidas, () => "A entidade não está mais na planilha. Confirme com a GRE se a escola foi fechada, renomeada ou unificada.") : "";
@@ -811,11 +872,13 @@ window.iniciarEmissao = function (P) {
   let M = null, mSujo = false;
   const TIPOS = { texto: "Texto curto", textolongo: "Texto longo", numero: "Número", data: "Data", unica: "Escolha única (lista)", multipla: "Múltipla escolha", simnao: "Sim ou não" };
   const LISTAS = [["motivos", "Motivos da O.S.", "Aparecem como opções para marcar; a O.S. exige ao menos um."], ["ambientes", "Ambientes", "Lista para informar onde estão os splits. \"Outro\" sempre existe, com descrição."],
-    ["motivos_cancelamento", "Motivos de cancelamento", "Usados pela gerência ao cancelar. \"Outro motivo\" sempre existe, com descrição."]];
+    ["motivos_cancelamento", "Motivos de cancelamento", "Usados pela gerência ao cancelar. \"Outro motivo\" sempre existe, com descrição."],
+    ["problemas", "Tipos de problema", "Usados pela empresa e pela GMAP ao registrar um problema na O.S. \"Outro problema\" sempre existe, com descrição."]];
   const novoId = p => p + Math.random().toString(36).slice(2, 8);
   function renderModelo() {
     if (!GMAP) return;
     if (!M) { M = JSON.parse(JSON.stringify(MOD())); mSujo = false; }
+    if (!M.problemas) M.problemas = [];   // banco sem a migração 014
     const base = MOD();
     $("v-modelo").innerHTML = `<div class="card"><h3>Modelo da O.S.</h3>
       <div class="d">Versão ${base.versao}${base.alterado_por ? ` · alterada por ${esc(base.alterado_por)} em ${quando(base.alterado_em)}` : ""}. As mudanças valem para as próximas O.S.; cada O.S. já emitida guarda o que foi preenchido, com os textos daquele momento.</div>
@@ -901,7 +964,8 @@ window.iniciarEmissao = function (P) {
   async function salvarModelo() {
     const f = conferirModelo();
     if (f.length) return UI.alerta({ titulo: "Corrija o modelo antes de salvar", itens: f });
-    const limpo = JSON.parse(JSON.stringify(M)); ["motivos", "ambientes", "motivos_cancelamento"].forEach(k => limpo[k].forEach(o => delete o.novo)); limpo.perguntas.forEach(q => delete q.novo);
+    const limpo = JSON.parse(JSON.stringify(M)); ["motivos", "ambientes", "motivos_cancelamento", "problemas"].forEach(k => (limpo[k] || []).forEach(o => delete o.novo)); limpo.perguntas.forEach(q => delete q.novo);
+    if (!(limpo.problemas || []).length) delete limpo.problemas;   // banco sem a migração 014: não envia a lista
     if (!(await UI.confirmar({ titulo: "Salvar o modelo da O.S.?", texto: "As mudanças valem para as próximas O.S. As já emitidas não mudam.", botao: "Salvar modelo" }))) return;
     $("mSalvar").disabled = true;
     const r = await rpc("modelo_salvar", { p_modelo: limpo });
@@ -920,6 +984,7 @@ window.iniciarEmissao = function (P) {
       <div class="fgrid2"><label class="fl"><span>Nome</span><input></label><label class="fl"><span>Telefone ou e-mail</span><input></label></div>
       ${pergs.length ? `<span class="flt">Informações adicionais</span><div class="fgrid2">${pergs.map(q => htmlPergunta(Object.assign({}, q, { id: "prev_" + q.id }))).join("")}</div>` : ""}
       <span class="flt">Motivos de cancelamento (na tela de cancelar)</span><div class="mun">${ativos(m.motivos_cancelamento).concat(["Outro motivo"]).map(esc).join(" · ")}</div>
+      <span class="flt">Tipos de problema (na tela de registrar problema)</span><div class="mun">${ativos(m.problemas || []).concat(["Outro problema"]).map(esc).join(" · ")}</div>
       <div class="dlgb"><button type="button" class="btn pri" id="pvF">Fechar</button></div></div>`;
     d.classList.add("on"); $("pvF").onclick = () => d.classList.remove("on");
   }
@@ -995,20 +1060,26 @@ window.iniciarEmissao = function (P) {
   marcarAbaNova();
   // Auditoria: cancelar a O.S. duplicada, com o motivo e o detalhe já preenchidos (a pessoa pode mudar antes de confirmar).
   // Usa a mesma função do banco do cancelamento comum; continua na Auditoria depois de cancelar.
-  function cancelarDuplicada(o, outra) {
-    if (!o || !outra) return;
+  // cancelamento com motivo e detalhe já preenchidos (a pessoa pode mudar antes de confirmar); usa a mesma função do banco
+  function cancelarComo(o, motivoRe, detalhe, textoExtra) {
+    if (!o) return;
     const ops = ativos(MOD().motivos_cancelamento).concat(["Outro motivo"]);
-    const dup = ops.find(m => /duplicad/i.test(m)) || "Outro motivo";
+    const sug = (motivoRe && ops.find(m => motivoRe.test(m))) || "Outro motivo";
     return dialogo({ titulo: `Cancelar a O.S. ${o.os}`, perigo: true, botao: "Cancelar O.S.",
-      texto: `Duplicada da O.S. ${esc(outra.os)}, que continua em aberto. O cancelamento não pode ser desfeito. A empresa é avisada por e-mail.`,
-      campos: [{ id: "motivo", rot: "Motivo", tipo: "select", opcoes: ops, obrig: true, valor: dup },
-        { id: "texto", rot: "Detalhe", tipo: "textarea", valor: `Duplicada da O.S. ${outra.os} (${EMPN[outra.emp] || outra.emp}, criada em ${fmt(outra.criada)})`, dica: "Obrigatório quando o motivo for \"Outro motivo\"." }],
+      texto: (textoExtra ? textoExtra + " " : "") + "O cancelamento não pode ser desfeito. A empresa é avisada por e-mail.",
+      campos: [{ id: "motivo", rot: "Motivo", tipo: "select", opcoes: ops, obrig: true, valor: sug },
+        { id: "texto", rot: "Detalhe", tipo: "textarea", valor: detalhe || "", dica: "Obrigatório quando o motivo for \"Outro motivo\"." }],
       enviar: async v => {
         if (v.motivo === "Outro motivo" && (v.texto || "").length < 10) return "Descreva o motivo (mínimo de 10 caracteres).";
         const r = await rpc("os_cancelar", { p_id: o.id, p_motivo: v.motivo, p_texto: v.texto });
         if (r.erro) return r.erro;
         await P.recarregar(); aviso(`O.S. ${o.os} cancelada.`, "ok"); return null;
       } });
+  }
+  // Auditoria: cancelar a O.S. duplicada, com o motivo e o detalhe já preenchidos
+  function cancelarDuplicada(o, outra) {
+    if (!o || !outra) return;
+    return cancelarComo(o, /duplicad/i, `Duplicada da O.S. ${outra.os} (${EMPN[outra.emp] || outra.emp}, criada em ${fmt(outra.criada)})`, `Duplicada da O.S. ${esc(outra.os)}, que continua em aberto.`);
   }
   return { dialogo, cancelarDuplicada, renderPlanilha, renderModelo, podeSair, faixaHoje, contarAprov, renderNova, renderAprov, renderEmpresas, faixaDetalhe, botoesDetalhe, ligarDetalhe, historico, audEntidades };
 };
