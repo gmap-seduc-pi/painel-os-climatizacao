@@ -4,6 +4,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.9.1] - 2026-11-25
+
+Requer a migração `supabase/migrations/012_feed_visitas.sql` (depois da 011).
+
+### Corrigido
+- **Feed: movimentações antigas aparecendo como novas.** A data da última visita ao Feed ficava guardada no navegador; em outro navegador ou no celular, valia a data antiga daquele aparelho. Agora ela fica na conta (banco) e vale em qualquer lugar. Vale sempre a data mais recente entre a conta e o navegador; na primeira vez, a data que já estava no navegador é levada para a conta.
+
+### Adicionado
+- Botão **"Marcar tudo como visto"** no Feed (aparece quando há movimentações novas).
+
+### Armazenamento e consumo
+- Uma linha pequena por usuário, que não cresce com o uso (cada gravação substitui a anterior). Simulação de 1 ano com 100 pessoas e 500 gravações cada: cerca de 80 KB.
+- O painel grava no banco no máximo uma vez a cada 2 minutos por pessoa, e só quando a data avança.
+
 ## [2.9.0] - 2026-11-25
 
 Só arquivos do site (sem migração). Exige configurar o envio de e-mail no Supabase (passo a passo no manual, "Configuração do envio de e-mail da recuperação").
