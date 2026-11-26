@@ -34,6 +34,9 @@ window.iniciarMedicao = function (P) {
   const nomeItem = it => `${it.tipo} · ${it.faixa} BTU`;
   const exige = (emp, data) => !!data && data >= medDesde() && !!contratoNa(emp, data);
   const temContrato = emp => contratosDa(emp).some(c => c.ativo);
+  // serviços do contrato da empresa na data (para a grade da emissão): tipo, faixa e preço; vazio se não houver contrato
+  const servicosContrato = (emp, data) => { const ct = contratoNa(emp, data) || contratosDa(emp).find(c => c.ativo); if (!ct) return [];
+    return itensDo(ct.id).filter(i => i.grupo === "Serviço").map(i => ({ tipo: i.tipo, faixa: i.faixa, item_id: i.id, preco: preco(i.id, data) })); };
   // itens declarados numa O.S., com a conferência (só a gestão recebe a conferência)
   function itensOS(o) {
     const confs = M().itensConf || [];
@@ -402,5 +405,5 @@ window.iniciarMedicao = function (P) {
       <div class="foot">Documento gerado pelo Painel de O.S. de Climatização em ${new Date().toLocaleString("pt-BR")}. Valores pelos preços vigentes na data de cada atendimento.</div></div>`);
   }
 
-  return { campoItens, validarItens, exige, contratoNa, itensOS, valorOS, resumoItens, blocoDetalhe, ligarDetalhe, render, contarAlertas, resumoAlertas, temContrato, brl, medDesde, nomeItem, codigo };
+  return { servicosContrato, campoItens, validarItens, exige, contratoNa, itensOS, valorOS, resumoItens, blocoDetalhe, ligarDetalhe, render, contarAlertas, resumoAlertas, temContrato, brl, medDesde, nomeItem, codigo };
 };

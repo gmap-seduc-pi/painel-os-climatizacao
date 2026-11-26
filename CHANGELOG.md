@@ -4,6 +4,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.12.0] - 2026-11-26
+
+Requer a migração `supabase/migrations/015_grade_servicos_solicitados.sql` (depois da 014).
+
+### Alterado
+- **Emissão: "4. Ambientes e máquinas"**, obrigatório nas O.S. novas: em cada ambiente, quantas máquinas há. Cada linha tem uma **identificação opcional** (ex.: sala 01, Bloco B), e o mesmo ambiente pode repetir com identificações diferentes ("Sala de aula 01", "Sala de aula 04"). A quantidade aparece com "máq.". **As máquinas da O.S. são a soma dos ambientes.**
+- **Emissão: "5. Serviços solicitados por potência"**, uma grade obrigatória nas O.S. novas que substitui as caixas de tipo de serviço e o campo de splits. Tem uma linha por serviço (preventiva, corretiva, instalação, desinstalação) e uma coluna por faixa de BTU. Só serviços, sem peças.
+  - **Regra:** o total de serviços na grade nunca pode ser menor que o total de máquinas dos ambientes, porque toda máquina precisa de ao menos um serviço. Pode ser maior, quando uma máquina recebe mais de um serviço (ex.: desinstalar numa sala e instalar em outra). O formulário mostra "Máquinas nos ambientes: X · Serviços na grade: Y", avisa o que falta e não envia. O banco confere a mesma regra.
+  - As colunas seguem o contrato da empresa escolhida (a de 9.000 BTU aparece só para quem tem a faixa no contrato); célula fora do contrato fica bloqueada. Sem contrato cadastrado, a grade usa as faixas comuns.
+  - Ao trocar de empresa, o que não existir no contrato da nova empresa sai da grade, com aviso do que saiu.
+  - O tipo de serviço da O.S. passa a vir da grade. A equipe da GMAP vê o valor estimado pelos preços do contrato.
+- **Detalhe e O.S. impressa:** tabela "Serviços solicitados por potência" no lugar da linha "Serviço"; ambientes no formato "Sala de aula 01 (2 máq.)"; linha "Máquinas" com o total. Na impressa, o espaço de anotações se ajusta; em O.S. muito extensas, as assinaturas passam para a segunda folha.
+- **Modelo:** a opção "Ambientes obrigatórios" passa a valer só para O.S. antigas editadas sem a grade.
+
+### Compatibilidade
+- O.S. emitidas antes da 2.12 continuam como estão (sem grade). Ao editar uma delas, ou ao importar uma O.S. da planilha, a grade pode ficar em branco: os serviços e splits atuais são mantidos. Preenchida, valem as regras acima, e o histórico registra a grade anterior e a nova.
+- O banco ainda aceita o formato antigo (sem grade) por um tempo, para quem estiver com o site antigo aberto no navegador.
+
 ## [2.11.0] - 2026-11-25
 
 Requer a migração `supabase/migrations/014_problema_e_revisao.sql` (depois da 013).

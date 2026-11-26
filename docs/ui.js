@@ -245,5 +245,22 @@
 
   // nome do status na tela: "Stand by" passou a se chamar "Problema" (o valor no banco continua o mesmo)
   const rotStatus = st => st === "Stand by" ? "Problema" : st;
-  window.UI = { rotStatus, aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
+  // grade de serviços solicitados na emissão: [{servico, faixa, qtd}]
+  const SERV_G = ["MANUT. PREVENTIVA", "MANUT. CORRETIVA", "INSTALAÇÃO", "DESINSTALAÇÃO"];
+  const SERV_GN = { "MANUT. PREVENTIVA": "Preventiva", "MANUT. CORRETIVA": "Corretiva", "INSTALAÇÃO": "Instalação", "DESINSTALAÇÃO": "Desinstalação" };
+  const ordFaixa = f => parseInt(String(f).replace(/\./g, ""), 10) || 0;
+  const escG = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const txtSol = sol => SERV_G.filter(s => (sol || []).some(x => x.servico === s)).map(s => SERV_GN[s] + ": " + sol.filter(x => x.servico === s)
+    .sort((a, b) => ordFaixa(a.faixa) - ordFaixa(b.faixa)).map(x => `${x.faixa} BTU (${x.qtd} serv.)`).join(", ")).join("; ");
+  // ambientes: "Sala de aula 01 (2 máq.) · Cozinha (1 máq.)"
+  const nomeAmb = a => a.ambiente + (a.ident ? " " + a.ident : "");
+  const txtAmb = amb => (amb || []).map(a => `${nomeAmb(a)} (${a.splits} máq.)`).join(" · ");
+  function tabelaSol(sol, titulo) {
+    if (!Array.isArray(sol) || !sol.length) return "";
+    const fx = [...new Set(sol.map(x => x.faixa))].sort((a, b) => ordFaixa(a) - ordFaixa(b)), sv = SERV_G.filter(s => sol.some(x => x.servico === s));
+    const q = (s, f) => (sol.find(x => x.servico === s && x.faixa === f) || {}).qtd || "";
+    return `<table class="tsol nocard"${titulo ? ` aria-label="${escG(titulo)}"` : ""}><thead><tr><th>Serviço</th>${fx.map(f => `<th>${escG(f)} BTU</th>`).join("")}<th>Total</th></tr></thead><tbody>${sv.map(s =>
+      `<tr><th>${SERV_GN[s]}</th>${fx.map(f => `<td>${q(s, f)}</td>`).join("")}<td><b>${sol.filter(x => x.servico === s).reduce((t, x) => t + x.qtd, 0)}</b></td></tr>`).join("")}</tbody></table>`;
+  }
+  window.UI = { rotStatus, txtSol, txtAmb, nomeAmb, tabelaSol, ordFaixa, SERV_G, SERV_GN, aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
 })();
