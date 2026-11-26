@@ -104,6 +104,7 @@ td.n,th.n{text-align:right}
   .osan{flex:1 1 auto;min-height:60mm;margin-top:10px;border:1px solid #999;padding:6px 8px 0;display:flex;flex-direction:column;overflow:hidden}
   .pg.os.fim{height:auto}.pg.os.fim .sig{margin-top:60px}.osfim .osln{display:block}
   .osan-d{font-size:10px;color:#555;margin-top:-2px}
+  .pg.os:has(.osgr) .osan{min-height:22mm}.pg.os:has(.osgr) .osat{margin-top:7px}
   .osan-l{flex:1;overflow:hidden}.osan-l i{display:block;height:8.5mm;border-bottom:1px dotted #888;box-sizing:border-box}
   .rp table{font-size:10.5px}.rp th,.rp td{border:1px solid #ccc;padding:3px 5px}.rp th{background:#eef1f3;position:static}
   .rp h2{font-size:16px;margin:0 0 6px}.rp h3{font-size:13px;margin:14px 0 6px}
@@ -284,9 +285,10 @@ h3.sec{font-size:17px;margin:0 0 2px}
 .chips-sel input:checked+span{background:var(--brand);border-color:var(--brand);color:#fff}
 .chips-sel input:focus-visible+span{outline:2px solid var(--brand);outline-offset:2px}
 .amb{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
-.ambl{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 90px 32px;gap:6px;align-items:center}
+.ambl{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr) 118px 32px;gap:6px;align-items:center}
+.ambqw{display:flex;align-items:center;gap:5px}.ambqw span{font-size:13px;color:var(--mut,#667)}.ambl .ambqw input{width:72px}
 .ambl select,.ambl input{font:inherit;border:1px solid var(--line);border-radius:6px;padding:7px 8px;background:#fff;min-width:0;width:100%;box-sizing:border-box}
-.ambl .ambo[hidden]{display:block;visibility:hidden}
+.ambl .ambo[hidden]{display:none}.ambl:has(.ambo[hidden]) select{grid-column:span 2}
 .fgrid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
 input[readonly]{background:var(--bg);color:var(--muted)}
 /* modelo da O.S. */
@@ -311,8 +313,10 @@ input[readonly]{background:var(--bg);color:var(--muted)}
 @media (max-width:980px){.mlistas{grid-template-columns:1fr}}
 @media (max-width:700px){
   .fgrid2{grid-template-columns:1fr}
-  .ambl{grid-template-columns:minmax(0,1fr) 80px 32px}
+  .ambl{grid-template-columns:minmax(0,1fr) 112px 32px}
   .ambl .ambo{grid-column:1/-1;grid-row:2}
+  .ambl .ambi{grid-column:1/-1;grid-row:3}
+  .ambl select,.ambl:has(.ambo[hidden]) select{grid-column:1;grid-row:1}.ambl .ambqw{grid-column:2;grid-row:1}.ambl>button{grid-column:3;grid-row:1}
   .ambl .ambo[hidden]{display:none}
   .mqh{grid-template-columns:auto minmax(0,1fr)}
   .mqh select,.mqh .mqb{grid-column:1/-1}
@@ -645,3 +649,20 @@ tr.cmpr>td{background:var(--soft);padding:0 10px 14px}
 .datual dl{display:grid;grid-template-columns:max-content 1fr;gap:2px 12px;margin:6px 0}
 .datual dt{font-weight:600;color:var(--muted)}.datual dd{margin:0}
 @media (max-width:700px){.datual dl{grid-template-columns:1fr}.datual dt{margin-top:4px}}
+
+/* 2.12.0 · grade de serviços solicitados */
+.tsol{border-collapse:collapse;font-size:13px;margin:4px 0;min-width:280px}
+.tsol th,.tsol td{border:1px solid var(--line);padding:4px 8px;text-align:center}
+.tsol thead th{background:var(--graybg);font-weight:700;font-size:12px}
+.tsol tbody th{text-align:left;font-weight:600}
+.dsol{margin-top:10px;overflow-x:auto}.dsol h4{margin:0 0 4px;font-size:13px}
+.grade{overflow-x:auto}
+.grade table{border-collapse:collapse;font-size:13px}
+.grade th,.grade td{border:1px solid var(--line);padding:4px 6px;text-align:center}
+.grade thead th{background:var(--graybg);font-size:12px;font-weight:700;white-space:nowrap}
+.grade tbody th{text-align:left;font-weight:600;white-space:nowrap}
+.grade input{width:64px;text-align:center;padding:6px 4px}
+.grade input:disabled{background:var(--graybg);opacity:.55}
+.grade td.tt{font-weight:700;min-width:44px}
+.gradet{margin-top:6px}
+@media print{ .osgr .tsol{font-size:10.5px}.osgr .tsol th,.osgr .tsol td{padding:2px 6px;border-color:#999} }

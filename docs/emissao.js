@@ -155,10 +155,10 @@ window.iniciarEmissao = function (P) {
   function marcarAbaNova() { const t = document.querySelector('.tab[data-v="nova"]'); if (t) t.innerHTML = "Nova O.S." + (rascunho ? ' <span class="rasc">rascunho</span>' : ""); }
 
   // dados do formulário a partir de uma O.S. existente
-  const dadosDe = o => ({ entidade_id: o.entidade_id, empresa: o.emp, prioridade: o.prio, servicos: o.serv || [], splits: o.splits, observacoes: o.obs || "",
+  const dadosDe = o => ({ entidade_id: o.entidade_id, empresa: o.emp, prioridade: o.prio, servicos: o.serv || [], splits: o.splits, solicitado: o.solicitado || null, observacoes: o.obs || "",
     origem: o.origem || "", origem_num: o.origem_num || "", fora_just: o.fora_just || "",
     motivos: (o.motivos || []).filter(m => !/^Outro: /.test(m)), motivo_outro: ((o.motivos || []).find(m => /^Outro: /.test(m)) || "").replace(/^Outro: /, ""),
-    ambientes: (o.ambientes || []).map(a => /^Outro: /.test(a.ambiente) ? { ambiente: "Outro", outro: a.ambiente.replace(/^Outro: /, ""), splits: a.splits } : { ambiente: a.ambiente, outro: "", splits: a.splits }),
+    ambientes: (o.ambientes || []).map(a => /^Outro: /.test(a.ambiente) ? { ambiente: "Outro", outro: a.ambiente.replace(/^Outro: /, ""), ident: a.ident || "", splits: a.splits } : { ambiente: a.ambiente, outro: "", ident: a.ident || "", splits: a.splits }),
     resp_nome: o.resp_nome || "", resp_contato: o.resp_contato || "",
     respostas: Object.fromEntries((o.respostas || []).map(r => [r.id, r.valor])) });
 
@@ -250,12 +250,12 @@ window.iniciarEmissao = function (P) {
         <div class="fcol" id="bPrio"><span class="flt">3. Prioridade <i class="obr">obrigatório</i></span>
           <div class="seg" id="nPrio">${PRIOS.map(p => `<label><input type="radio" name="nPrio" value="${p}"><span>${p}<small>${DIAS[p]} dias</small></span></label>`).join("")}</div>
           <div class="mun" id="nPrazo"></div></div>
-        <div class="fcol" id="bServ"><span class="flt">4. Tipo de serviço <i class="obr">obrigatório</i></span>
-          <div class="chks">${SERV.map(s => `<label><input type="checkbox" class="nServ" value="${s}"> ${SERVN[s]}</label>`).join("")}</div></div>
-        <div class="fcol"><label class="fl"><span>Quantidade de splits</span><input type="number" id="nSplits" min="0" max="500" step="1" inputmode="numeric"></label><div class="mun" id="nSplitsN"></div></div>
-        <div class="fcol full" id="bMot"><span class="flt">5. Motivo da O.S. <i class="obr">obrigatório</i> <small class="mun">marque um ou mais</small></span>${htmlMotivos(m)}</div>
-        <div class="fcol full" id="bAmb"><span class="flt">6. Ambientes ${m.campos.ambientes.obrigatorio ? '<i class="obr">obrigatório</i>' : '<small class="mun">opcional</small>'} <small class="mun">e a quantidade de splits em cada um</small></span>
+        <div class="fcol full" id="bAmb"><span class="flt">4. Ambientes e máquinas <i class="obr">obrigatório</i> <small class="mun">onde estão as máquinas e quantas há em cada ambiente. A identificação é opcional (ex.: sala 01, Bloco B).</small></span>
           <div id="nAmb" class="amb"></div><button type="button" class="btn" id="nAmbAdd">+ Adicionar ambiente</button></div>
+        <div class="fcol full" id="bServ"><span class="flt">5. Serviços solicitados por potência <i class="obr">obrigatório</i> <small class="mun">quantos serviços de cada tipo em cada faixa de BTU. Cada máquina informada nos ambientes precisa de ao menos um serviço. Uma máquina pode receber mais de um (ex.: desinstalar numa sala e instalar em outra), então a grade pode ter mais serviços que máquinas, nunca menos. Peças não entram: a empresa informa no atendimento.</small></span>
+          <div id="nGrade" class="grade"></div><div class="mun gradet" id="nGradeT"></div>
+          <input type="hidden" id="nSplits"><div class="mun" id="nSplitsN" hidden></div></div>
+        <div class="fcol full" id="bMot"><span class="flt">6. Motivo da O.S. <i class="obr">obrigatório</i> <small class="mun">marque um ou mais</small></span>${htmlMotivos(m)}</div>
         <div class="fcol full" id="bResp"><span class="flt">7. Responsável pela entidade ${m.campos.responsavel.obrigatorio ? '<i class="obr">obrigatório</i>' : '<small class="mun">opcional</small>'}</span>
           <div class="fgrid2"><label class="fl"><span>Nome</span><input id="nRespN" maxlength="120" placeholder="Ex.: Maria Lima (diretora)"></label>
           <label class="fl"><span>Telefone ou e-mail</span><input id="nRespC" maxlength="120" placeholder="(86) 99999-9999"></label></div><div class="mun" id="nRespNota"></div></div>
@@ -284,7 +284,7 @@ window.iniciarEmissao = function (P) {
     };
     $("nEmp").onchange = mostrarEmp;
     document.querySelectorAll('input[name="nPrio"]').forEach(r => r.onchange = mostrarPrazo);
-    document.querySelectorAll(".nServ").forEach(c => c.onchange = mostrarDup);
+    // a grade é montada no preencher (e de novo quando a empresa muda)
     $("nOrig").onchange = mostrarOrig;
     if ($("nMotO")) $("nMotO").onchange = () => { $("nMotOT").hidden = !$("nMotO").checked; if ($("nMotO").checked) $("nMotOT").focus(); };
     $("nAmbAdd").onclick = () => { addAmb({}); sujar(); const s = $("nAmb").querySelector(".ambl:last-child select"); if (s) s.focus(); };
@@ -304,7 +304,7 @@ window.iniciarEmissao = function (P) {
       rascunho = null; guardarRasc(); renderNova();
     };
     $("nEnv").onclick = enviarForm;
-    mostrarEnt(false); preencher(ini); mostrarPrazo(); mostrarOrig(); mostrarDup();
+    mostrarEnt(false); preencher(ini); if (!$("nGrade").innerHTML) montarGrade(); mostrarPrazo(); mostrarOrig(); mostrarDup();
     F.pronto = true; marcarAbaNova();
   }
   function sujar() {
@@ -316,7 +316,9 @@ window.iniciarEmissao = function (P) {
     if (!d) return;
     if (d.empresa) { $("nEmp").value = d.empresa; mostrarEmp(); }
     document.querySelectorAll('input[name="nPrio"]').forEach(r => r.checked = r.value === d.prioridade);
-    document.querySelectorAll(".nServ").forEach(c => c.checked = (d.servicos || []).includes(c.value));
+    F.grade = {}; (d.solicitado || []).forEach(x => { F.grade[x.servico + "|" + x.faixa] = x.qtd; }); F.gradeEmp = $("nEmp").value;
+    F.gradeAntiga = (F.modo === "editar" || F.modo === "importar") && !(d.solicitado && d.solicitado.length) ? { servicos: d.servicos || [], splits: d.splits ?? null } : null;
+    montarGrade();
     $("nSplits").value = d.splits ?? "";
     $("nObs").value = d.observacoes || "";
     $("nOrig").value = d.origem || ""; $("nOrigN").value = d.origem_num || "";
@@ -330,31 +332,80 @@ window.iniciarEmissao = function (P) {
   function coletar() {
     return {
       entidade_id: F.ent ? F.ent.id : null, empresa: $("nEmp").value, prioridade: (document.querySelector('input[name="nPrio"]:checked') || {}).value || "",
-      servicos: [...document.querySelectorAll(".nServ:checked")].map(c => c.value), splits: $("nSplits").value === "" ? null : +$("nSplits").value,
+      ...dadosGrade(),
       observacoes: $("nObs").value.trim(), origem: $("nOrig").value, origem_num: $("nOrigN").value.trim(), fora_just: $("nForaJ") ? $("nForaJ").value.trim() : "",
       motivos: [...document.querySelectorAll(".nMot:checked")].map(c => c.value), motivo_outro: $("nMotO") && $("nMotO").checked ? $("nMotOT").value.trim() : "",
-      ambientes: [...document.querySelectorAll("#nAmb .ambl")].map(l => ({ ambiente: l.querySelector("select").value, outro: l.querySelector(".ambo").value.trim(), splits: l.querySelector(".ambq").value === "" ? null : +l.querySelector(".ambq").value })),
+      ambientes: [...document.querySelectorAll("#nAmb .ambl")].map(l => ({ ambiente: l.querySelector("select").value, outro: l.querySelector(".ambo").value.trim(), ident: l.querySelector(".ambi").value.trim(), splits: l.querySelector(".ambq").value === "" ? null : +l.querySelector(".ambq").value })),
       resp_nome: $("nRespN").value.trim(), resp_contato: $("nRespC").value.trim(),
       respostas: Object.fromEntries(MOD().perguntas.filter(q => q.ativo).map(q => [q.id, valorPergunta(q)]))
     };
+  }
+  // ---------- grade de serviços solicitados (serviço x faixa de potência x quantidade de máquinas) ----------
+  const TIPO_CT = { "MANUT. PREVENTIVA": "Manutenção preventiva", "MANUT. CORRETIVA": "Manutenção corretiva", "INSTALAÇÃO": "Instalação", "DESINSTALAÇÃO": "Desinstalação" };
+  const FAIXAS_PADRAO = ["12.000 a 18.000", "22.000 a 30.000", "36.000 a 60.000"];
+  // faixas e combinações previstas no contrato da empresa; sem contrato, as faixas comuns e todas as combinações
+  function gradeDaEmpresa(emp) {
+    const sc = emp ? MED.servicosContrato(emp, REF) : [];
+    if (!sc.length) return { faixas: FAIXAS_PADRAO.slice(), pode: () => true, preco: () => null, contrato: false };
+    const faixas = [...new Set(sc.map(x => x.faixa))].sort((a, b) => UI.ordFaixa(a) - UI.ordFaixa(b));
+    const acha = (s, f) => sc.find(x => x.tipo === TIPO_CT[s] && x.faixa === f);
+    return { faixas, pode: (s, f) => !!acha(s, f), preco: (s, f) => { const x = acha(s, f); return x ? x.preco : null; }, contrato: true };
+  }
+  function lerGrade() { document.querySelectorAll("#nGrade .gq").forEach(i => { const k = i.dataset.s + "|" + i.dataset.f; if (i.value === "" || +i.value === 0) delete F.grade[k]; else F.grade[k] = +i.value; }); }
+  function montarGrade() {
+    if (!$("nGrade")) return;
+    F.grade = F.grade || {};
+    const G = gradeDaEmpresa($("nEmp").value); F.gradeInfo = G;
+    // quantidades em faixas que o contrato da empresa escolhida não prevê: avisa e tira da grade
+    const fora = Object.keys(F.grade).filter(k => { const [s, f] = k.split("|"); return !G.faixas.includes(f) || !G.pode(s, f); });
+    F.gradeFora = fora.map(k => { const [s, f] = k.split("|"); return `${F.grade[k]} x ${SERVN[s]} ${f}`; }); fora.forEach(k => delete F.grade[k]);
+    $("nGrade").innerHTML = `<table><thead><tr><th>Serviço</th>${G.faixas.map(f => `<th>${esc(f)} BTU</th>`).join("")}<th>Total</th></tr></thead><tbody>${SERV.map(s => `<tr><th>${SERVN[s]}</th>${G.faixas.map(f => {
+        const ok = G.pode(s, f), v = F.grade[s + "|" + f] || "";
+        return `<td><input type="number" class="gq" data-s="${s}" data-f="${esc(f)}" min="0" max="500" step="1" inputmode="numeric" value="${v}" ${ok ? "" : 'disabled title="Não previsto no contrato desta empresa"'} aria-label="${SERVN[s]}, ${esc(f)} BTU"></td>`; }).join("")}<td class="tt" data-tt="${s}"></td></tr>`).join("")}</tbody></table>`;
+    $("nGrade").querySelectorAll(".gq").forEach(i => i.oninput = () => { lerGrade(); totaisGrade(); mostrarDup(); sujar(); });
+    totaisGrade();
+  }
+  function dadosGrade() {
+    if ($("nGrade")) lerGrade();
+    const sol = Object.entries(F.grade || {}).map(([k, q]) => { const [servico, faixa] = k.split("|"); return { servico, faixa, qtd: q }; })
+      .sort((a, b) => SERV.indexOf(a.servico) - SERV.indexOf(b.servico) || UI.ordFaixa(a.faixa) - UI.ordFaixa(b.faixa));
+    // O.S. antiga (sem grade) editada sem preencher a grade: mantém os serviços e splits atuais
+    if (!sol.length && F.gradeAntiga) return { servicos: F.gradeAntiga.servicos, splits: F.gradeAntiga.splits };
+    const tot = SERV.map(s => sol.filter(x => x.servico === s).reduce((t, x) => t + x.qtd, 0));
+    return { solicitado: sol, servicos: SERV.filter((s, i) => tot[i] > 0), splits: sol.length ? (somaAmb() || null) : null };
+  }
+  const somaAmb = () => [...document.querySelectorAll("#nAmb .ambq")].reduce((t, i) => t + (Number.isInteger(+i.value) && +i.value > 0 ? +i.value : 0), 0);
+  const somaServ = sol => (sol || []).reduce((t, x) => t + x.qtd, 0);
+  function totaisGrade() {
+    const d = dadosGrade(), G = F.gradeInfo || {};
+    SERV.forEach(s => { const c = document.querySelector(`#nGrade [data-tt="${s}"]`); if (c) c.textContent = (d.solicitado || []).filter(x => x.servico === s).reduce((t, x) => t + x.qtd, 0) || ""; });
+    $("nSplits").value = d.splits ?? "";
+    const val = (d.solicitado || []).reduce((t, x) => { const p = G.preco ? G.preco(x.servico, x.faixa) : null; return p == null ? t : t + p * x.qtd; }, 0);
+    const soma = somaAmb(), nserv = somaServ(d.solicitado);
+    const L = [];
+    if (F.gradeAntiga && !(d.solicitado || []).length) L.push(`${F.modo === "importar" ? "A planilha não tem a grade por potência" : "Esta O.S. foi emitida antes da grade"}. Se deixar a grade em branco, ficam os dados atuais: ${esc((F.gradeAntiga.servicos || []).map(s => SERVN[s] || s).join(", ") || "sem serviço")}${F.gradeAntiga.splits != null ? ", " + F.gradeAntiga.splits + " split(s)" : ""}.`);
+    if (soma || nserv) L.push(`<b>Máquinas nos ambientes: ${soma}</b> · <b>Serviços na grade: ${nserv}</b>`);
+    if (nserv && nserv < soma) L.push(`<span class="txbad">Faltam ${soma - nserv} serviço(s): cada máquina dos ambientes precisa de ao menos um serviço na grade.</span>`);
+    else if (nserv && !soma) L.push(`<span class="txbad">Informe os ambientes e quantas máquinas há em cada um.</span>`);
+    else if (nserv > soma) L.push(`Há ${nserv - soma} serviço(s) a mais que máquinas: confira se alguma máquina recebe dois serviços (ex.: desinstalar e instalar em outra sala).`);
+    if (EQUIPE && G.contrato && val > 0) L.push(`Valor estimado pelos preços do contrato: <b>${MED.brl(val)}</b>.`);
+    if (!G.contrato && $("nEmp").value) L.push("Esta empresa não tem contrato com preços cadastrados: a grade usa as faixas comuns, sem valor estimado.");
+    if ((F.gradeFora || []).length) L.push(`<span class="txbad">Saíram da grade por não estarem no contrato da empresa escolhida: ${esc(F.gradeFora.join("; "))}.</span>`);
+    $("nGradeT").innerHTML = L.join("<br>");
   }
   function addAmb(a) {
     const L = ativos(MOD().ambientes), l = document.createElement("div"); l.className = "ambl";
     l.innerHTML = `<select aria-label="Ambiente"><option value="">Ambiente</option>${L.map(t => `<option ${a.ambiente === t ? "selected" : ""}>${esc(t)}</option>`).join("")}<option ${a.ambiente === "Outro" ? "selected" : ""}>Outro</option></select>
       <input class="ambo" placeholder="Qual ambiente?" maxlength="80" value="${esc(a.outro || "")}" ${a.ambiente === "Outro" ? "" : "hidden"}>
-      <input class="ambq" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="Splits" aria-label="Quantidade de splits" value="${a.splits ?? ""}">
+      <input class="ambi" placeholder="Identificação (opcional)" maxlength="40" aria-label="Identificação do ambiente (opcional)" value="${esc(a.ident || "")}">
+      <span class="ambqw"><input class="ambq" type="number" min="1" max="200" step="1" inputmode="numeric" placeholder="Qtd." aria-label="Quantidade de máquinas" value="${a.splits ?? ""}"><span>máq.</span></span>
       <button type="button" class="ib sm" data-tip="Remover ambiente" aria-label="Remover ambiente">${UI.icone("cancelar")}</button>`;
     l.querySelector("select").onchange = e => { l.querySelector(".ambo").hidden = e.target.value !== "Outro"; totalAmb(); };
-    l.querySelector(".ambq").oninput = totalAmb;
+    l.querySelector(".ambq").oninput = totalAmb; l.querySelector(".ambi").oninput = sujar;
     l.querySelector("button").onclick = () => { l.remove(); totalAmb(); sujar(); };
     $("nAmb").appendChild(l); totalAmb();
   }
-  function totalAmb() {
-    const q = [...document.querySelectorAll("#nAmb .ambq")], tem = q.length > 0, soma = q.reduce((s, i) => s + (+i.value || 0), 0);
-    $("nSplits").readOnly = tem;
-    if (tem) $("nSplits").value = soma;
-    $("nSplitsN").textContent = tem ? "Calculada pela soma dos ambientes." : "";
-  }
+  function totalAmb() { if ($("nGrade")) totaisGrade(); }   // a quantidade de máquinas vem da grade; os ambientes só são conferidos
   function mostrarEnt(trocou) {
     const e = F.ent;
     $("nEntSel").innerHTML = e ? `<div class="entsel"><div><b>${esc(tc(e.nome))}</b> <span class="badge ${e.tipo === "escola" ? "b-info" : "b-gray"}">${e.tipo === "escola" ? "Escola" : "Outra entidade"} · ${esc(e.tipologia)}</span>
@@ -386,6 +437,7 @@ window.iniciarEmissao = function (P) {
     const v = $("nForaJ") ? $("nForaJ").value : "";
     $("nFora").innerHTML = fora ? `<div class="faixa warn"><b>${esc(EMPN[emp.nome] || emp.nome)} não atende ${esc(greCurta(e.gre))} nem ${esc(tc(e.municipio || ""))}.</b> Pode emitir em caso de urgência, com justificativa.
       <label class="fl"><span>Justificativa <i class="obr">obrigatório</i></span><textarea id="nForaJ" rows="2" maxlength="500">${esc(v)}</textarea></label></div>` : "";
+    if ($("nGrade") && F.gradeEmp !== $("nEmp").value) { if ($("nGrade").innerHTML) lerGrade(); F.gradeEmp = $("nEmp").value; montarGrade(); }   // faixas mudam com o contrato da empresa
   }
   function mostrarPrazo() {
     const p = (document.querySelector('input[name="nPrio"]:checked') || {}).value;
@@ -400,7 +452,7 @@ window.iniciarEmissao = function (P) {
   }
   function mostrarDup() {
     const e = F.ent; if (!e) { $("nDup").innerHTML = ""; return; }
-    const serv = [...document.querySelectorAll(".nServ:checked")].map(c => c.value);
+    const serv = dadosGrade().servicos;
     const abertas = P.todos().concat(P.solic()).filter(o => (o.entidade_id === e.id || (e.inep && e.inep !== "S/INEP" && o.inep === e.inep))
       && ["Emitida", "Stand by", "Aguardando aprovação"].includes(o.status) && (!F.o || o.id !== F.o.id));
     if (!abertas.length) { $("nDup").innerHTML = ""; return; }
@@ -414,18 +466,23 @@ window.iniciarEmissao = function (P) {
     if (!d.entidade_id) f.push(["Escola ou entidade", $("bEnt")]);
     if (!d.empresa) f.push(["Empresa", $("nEmp")]);
     if (!d.prioridade) f.push(["Prioridade", $("nPrio")]);
-    if (!d.servicos.length) f.push(["Tipo de serviço (marque ao menos um)", $("bServ")]);
+    if (!d.servicos.length) f.push(["Serviços solicitados por potência (informe ao menos uma quantidade na grade)", $("bServ")]);
+    [...document.querySelectorAll("#nGrade .gq")].filter(i => i.value !== "" && !(Number.isInteger(+i.value) && +i.value >= 0 && +i.value <= 500)).slice(0, 1)
+      .forEach(i => f.push([`Quantidade inválida na grade (${SERVN[i.dataset.s]}, ${i.dataset.f} BTU): use um número inteiro de 0 a 500`, i]));
     if (!d.motivos.length && !d.motivo_outro) f.push([$("nMotO") && $("nMotO").checked ? "Descrição do outro motivo" : "Motivo da O.S. (marque ao menos um)", $("nMotO") && $("nMotO").checked ? $("nMotOT") : $("nMot")]);
     if (d.motivo_outro && d.motivo_outro.length < 3) f.push(["Descrição do outro motivo", $("nMotOT")]);
-    if (m.campos.ambientes.obrigatorio && !d.ambientes.length) f.push(["Ambientes (informe ao menos um)", $("bAmb")]);
+    const comGrade = (d.solicitado || []).length || !F.gradeAntiga;   // O.S. antiga com a grade em branco segue a regra antiga
+    if ((comGrade || m.campos.ambientes.obrigatorio) && !d.ambientes.length) f.push(["Ambientes e máquinas (informe ao menos um ambiente)", $("bAmb")]);
     const linhas = [...document.querySelectorAll("#nAmb .ambl")];
     d.ambientes.forEach((a, i) => {
       if (!a.ambiente) f.push([`Ambiente da linha ${i + 1}`, linhas[i].querySelector("select")]);
       else if (a.ambiente === "Outro" && a.outro.length < 3) f.push([`Descrição do ambiente "Outro" (linha ${i + 1})`, linhas[i].querySelector(".ambo")]);
-      if (!Number.isInteger(a.splits) || a.splits < 1) f.push([`Quantidade de splits do ambiente ${a.ambiente === "Outro" ? a.outro || "Outro" : a.ambiente || "da linha " + (i + 1)}`, linhas[i].querySelector(".ambq")]);
+      if (!Number.isInteger(a.splits) || a.splits < 1) f.push([`Quantidade de máquinas do ambiente ${a.ambiente === "Outro" ? a.outro || "Outro" : a.ambiente || "da linha " + (i + 1)}`, linhas[i].querySelector(".ambq")]);
     });
-    const chaves = d.ambientes.filter(a => a.ambiente).map(a => a.ambiente === "Outro" ? "O:" + a.outro.toUpperCase() : a.ambiente);
-    if (new Set(chaves).size !== chaves.length) f.push(["Há ambiente repetido: some as quantidades em uma linha só", $("nAmb")]);
+    const chaves = d.ambientes.filter(a => a.ambiente).map(a => (a.ambiente === "Outro" ? "O:" + a.outro.toUpperCase() : a.ambiente) + "|" + (a.ident || "").toUpperCase());
+    if (new Set(chaves).size !== chaves.length) f.push(["Há ambiente repetido: some as quantidades em uma linha só ou diferencie pela identificação (ex.: 01, 04)", $("nAmb")]);
+    const nserv = somaServ(d.solicitado), nmaq = d.ambientes.reduce((t, a) => t + (Number.isInteger(a.splits) && a.splits > 0 ? a.splits : 0), 0);
+    if (nserv && nmaq && nserv < nmaq) f.push([`Serviços na grade (${nserv}) menos que as máquinas dos ambientes (${nmaq}): cada máquina precisa de ao menos um serviço`, $("bServ")]);
     if (m.campos.responsavel.obrigatorio && !d.resp_nome) f.push(["Nome do responsável pela entidade", $("nRespN")]);
     if ((m.campos.responsavel.obrigatorio || d.resp_nome) && !d.resp_contato) f.push(["Telefone ou e-mail do responsável", $("nRespC")]);
     if (!d.resp_nome && d.resp_contato) f.push(["Nome do responsável pela entidade", $("nRespN")]);
@@ -891,7 +948,7 @@ window.iniciarEmissao = function (P) {
           <div class="madd"><input class="mnova" placeholder="Nova opção" maxlength="80" aria-label="Nova opção em ${t}"><button type="button" class="btn" data-a="add">Adicionar</button></div>
           ${k === "motivos" ? `<label class="mun mchk"><input type="checkbox" id="mOutro" ${M.motivo_outro ? "checked" : ""}> Permitir "Outro" com descrição</label>` : ""}</div>`).join("")}</div></div>
       <div class="card"><h3>Regras dos campos</h3><div class="chks">
-        <label><input type="checkbox" class="mreg" data-c="ambientes" ${M.campos.ambientes.obrigatorio ? "checked" : ""}> Ambientes obrigatórios</label>
+        <label><input type="checkbox" class="mreg" data-c="ambientes" ${M.campos.ambientes.obrigatorio ? "checked" : ""}> Ambientes obrigatórios em O.S. antigas editadas sem a grade (nas O.S. com grade são sempre obrigatórios)</label>
         <label><input type="checkbox" class="mreg" data-c="responsavel" ${M.campos.responsavel.obrigatorio ? "checked" : ""}> Responsável pela entidade obrigatório</label>
         <label><input type="checkbox" class="mreg" data-c="descricao" ${M.campos.descricao.obrigatorio ? "checked" : ""}> Descrição obrigatória</label></div>
         <div class="mun">Escola, empresa, prioridade, tipo de serviço, motivo e origem são sempre obrigatórios: as regras de prazo, área e relatórios dependem deles.</div></div>

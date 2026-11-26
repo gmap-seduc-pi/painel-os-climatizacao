@@ -462,8 +462,8 @@ const find = k => ALL.find(o=>String(o.id)===String(k)) || SOLIC.find(o=>String(
 const ORIG={redmine:"Redmine",sei:"Processo SEI",gerencia:"Determinação da gerência"};
 function osRows(o){return [["Empresa",EMPN[o.emp]||o.emp],["Status",UI.rotStatus(o.status)],["Prioridade",o.prio||"n/d"],["Emitida em",fmt(o.criada)],["Prazo",fmt(o.prazo)],["Atendida em",fmt(o.atend)||"n/d"],
   ["Situação do prazo",PRE.includes(o.status)?"Ainda não emitida":o.sp],["Escola / entidade",o.escola],["INEP",o.inep],["GRE",o.gre],["Município",tc(o.mun||"")],["Zona",o.zona],["Endereço",o.end],
-  ["Origem da demanda",o.origem?ORIG[o.origem]+(o.origem_num?" nº "+o.origem_num:""):""],["Processo SEI",o.sei],["Serviço",o.serv.map(s=>SERVN[s]||s).join(", ")],
-  ["Qtd. de splits",o.splits??""],["Motivo da O.S.",(o.motivos||[]).join("; ")],["Ambientes",(o.ambientes||[]).map(a=>`${a.ambiente}: ${a.splits} split${a.splits===1?"":"s"}`).join(" · ")],
+  ["Origem da demanda",o.origem?ORIG[o.origem]+(o.origem_num?" nº "+o.origem_num:""):""],["Processo SEI",o.sei],["Serviço",o.solicitado&&o.solicitado.length?UI.txtSol(o.solicitado):o.serv.map(s=>SERVN[s]||s).join(", ")],
+  [o.solicitado&&o.solicitado.length?"Máquinas":"Qtd. de splits",o.splits??""],["Motivo da O.S.",(o.motivos||[]).join("; ")],["Ambientes",UI.txtAmb(o.ambientes)],
   ["Responsável pela entidade",o.resp_nome?o.resp_nome+" · "+(o.resp_contato||""):""],["Descrição / observações",o.obs],
   ...(o.respostas||[]).map(r=>[r.rotulo,Array.isArray(r.valor)?r.valor.join(", "):r.tipo==="data"?fmt(r.valor):r.valor]),["Empresa fora da área sugerida",o.fora_area?("Sim. Justificativa: "+(o.fora_just||"")):""],
   ["Problema informado",o.status==="Stand by"?o.standby_motivo+(o.standby_por?" ("+(o.standby_por==="empresa"?"empresa":"GMAP")+(o.problema_nome?", "+o.problema_nome:"")+")":""):""],
@@ -484,7 +484,8 @@ function openDet(k,lista){const o=find(k); if(!o) return; DET_ATUAL=String(o.id)
      <button class="ib" id="dProx" ${pos<NAV.length-1?"":"disabled"} data-tip="Próxima O.S. (seta →)" aria-label="Próxima O.S.">${UI.icone("proxima")}</button>`:""}
      <button class="btn" id="xd">Fechar</button></div></div>
    ${EMI.faixaDetalhe(o)}
-   <div class="dl">${osRows(o).slice(0).map(([a,b])=>`<div>${a}</div><div>${esc(b)}</div>`).join("")}</div>
+   <div class="dl">${osRows(o).filter(([a])=>!(a==="Serviço"&&o.solicitado&&o.solicitado.length)).map(([a,b])=>`<div>${a}</div><div>${esc(b)}</div>`).join("")}</div>
+   ${o.solicitado&&o.solicitado.length?`<div class="dsol"><h4>Serviços solicitados por potência</h4>${UI.tabelaSol(o.solicitado,"Serviços solicitados")}</div>`:""}
    ${MED.blocoDetalhe(o)}
    <div class="dacoes" id="dAcoes">${EMI.botoesDetalhe(o)}${PRE.includes(o.status)?"":UI.botaoIcone("imprimir","Imprimir esta O.S.").replace('data-acao="imprimir"','id="pd"')}</div>
    <h3 class="hist-t">Histórico</h3><div id="dHist" class="hist"><div class="mun">Carregando…</div></div>`;
@@ -521,7 +522,8 @@ function blocoAtendimento(o){
 }
 function printOS(list){
   doPrint(list.map(o=>`<div class="pg os${o.status==="Atendida"||o.status==="Cancelada"?" fim":""}">${ph("Ordem de Serviço de Climatização")}<h2>O.S. nº ${esc(o.os)}</h2>${o.revisao?'<div class="foot"><b>Em revisão pela GMAP: confirme os dados antes de executar.</b></div>':""}
-   <table>${osRows(o).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
+   <table>${osRows(o).filter(([a])=>!(o.solicitado&&o.solicitado.length&&a==="Serviço")).map(([a,b])=>`<tr><td class="k">${a}</td><td>${esc(b)}</td></tr>`).join("")}</table>
+   ${o.solicitado&&o.solicitado.length?`<div class="osat osgr"><div class="osat-t">Serviços solicitados por potência</div>${UI.tabelaSol(o.solicitado)}</div>`:""}
    ${blocoAtendimento(o)}
    ${o.status==="Cancelada"?"":'<div class="sig"><div>Responsável técnico da empresa</div><div>Responsável pela unidade escolar</div></div>'}
    <div class="foot">Documento gerado pelo Painel de O.S. de Climatização. Situação em ${fmt(REF)}.</div></div>`).join(""));
