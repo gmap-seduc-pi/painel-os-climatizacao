@@ -4,6 +4,27 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/). 
 
 ## [Não publicado]
 
+## [2.13.0] - 2026-11-26
+
+Requer a migração `supabase/migrations/016_administradores.sql` (depois da 015) e, logo em seguida, marcar os administradores (manual, passo da 2.13).
+
+### Adicionado
+- **Administradores do sistema.** Uma marca dada a pessoas da gerência. Só os administradores alteram:
+  - **Planilha:** importar ou descartar O.S. nova, aplicar ou manter diferença (também no detalhe da O.S.);
+  - **Empresas:** e-mail de aviso, GREs e municípios;
+  - **Modelo da O.S.;**
+  - **Configurações:** motivos de glosa e ressalva, datas de exigência do PDF e dos itens;
+  - **Usuários:** aprovar, recusar, editar, bloquear, reativar, excluir, enviar link de senha e dar ou retirar a marca.
+- A gerência sem a marca continua vendo essas telas, **só para consulta**, com a faixa "Somente consulta". O banco também recusa as alterações, não só a tela.
+- **Proteções:** o sistema nunca fica sem administrador; para bloquear, excluir ou tirar da gerência um administrador, é preciso retirar a marca antes; dar e retirar a marca fica no histórico de usuários.
+- Aba Usuários: selo "Administrador" e botão "Tornar administrador" / "Retirar administrador" nas pessoas da gerência.
+
+### Alterado
+- Pré-visualização do Modelo da O.S. mostra os ambientes como no formulário da 2.12 (identificação e "máq.").
+
+### Técnico
+- As 10 funções críticas do banco foram renomeadas para `_adm_<nome>` (corpo intacto) e ganharam uma função de mesmo nome que confere a marca. Para alterar uma delas no futuro, altere a `_adm_<nome>`.
+
 ## [2.12.0] - 2026-11-26
 
 Requer a migração `supabase/migrations/015_grade_servicos_solicitados.sql` (depois da 014).
