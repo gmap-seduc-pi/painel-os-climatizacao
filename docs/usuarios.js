@@ -25,6 +25,10 @@ async function renderUsuarios(CTX) {
   const { data, error } = await CTX.sb.rpc("listar_usuarios");
   if (error) { $("uPend").innerHTML = `<div class="empty">Não foi possível carregar: ${uEsc(error.message)}</div>`; return; }
   const pend = data.filter(u => u.situacao === "pendente");
+  // 2.13: quem é administrador (banco sem a migração 016: ninguém)
+  let ADM = new Set();
+  try { const r = await CTX.sb.from("perfis").select("user_id").eq("administrador", true); if (!r.error) ADM = new Set((r.data || []).map(x => x.user_id)); } catch (e) {}
+  const souAdmin = !!CTX.admin;
   const outros = data.filter(u => u.situacao !== "pendente");
   const empresas = CTX.empresas || [];
   const selPerfil = u => `<select class="usel" data-f="perfil">${Object.entries(PERFIL_NOME).map(([v, t]) => `<option value="${v}" ${u.perfil === v ? "selected" : ""}>${t}</option>`).join("")}</select>`;
@@ -38,10 +42,10 @@ async function renderUsuarios(CTX) {
 
   $("uTodos").innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Situação</th><th>Último acesso</th><th>Decidido em</th><th></th></tr></thead><tbody>${
     outros.map(u => {
-      const eu = u.user_id === CTX.uid, s = SIT[u.situacao] || [u.situacao, "b-gray"];
-      const acao = `<div class="acoes"><button class="btn" data-x="editar">Editar</button>` + (!eu && u.situacao === "aprovado" && u.email ? '<button class="btn" data-x="senha" title="Envia ao e-mail do usuário um link para criar uma senha nova">Enviar link de nova senha</button>' : "") + (eu ? '<span class="mun">você</span>' : (u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>')
+      const eu = u.user_id === CTX.uid, s = SIT[u.situacao] || [u.situacao, "b-gray"], adm = ADM.has(u.user_id);
+      const acao = `<div class="acoes"><button class="btn" data-x="editar">Editar</button>` + (!eu && u.situacao === "aprovado" && u.email ? '<button class="btn" data-x="senha" title="Envia ao e-mail do usuário um link para criar uma senha nova">Enviar link de nova senha</button>' : "") + (u.perfil === "gmap" && u.situacao === "aprovado" ? `<button class="btn" data-x="admin" title="${adm ? "Deixa de alterar Planilha, Empresas, Modelo, Configurações e Usuários" : "Passa a alterar Planilha, Empresas, Modelo, Configurações e Usuários"}">${adm ? "Retirar administrador" : "Tornar administrador"}</button>` : "") + (eu ? '<span class="mun">você</span>' : adm ? "" : (u.situacao === "aprovado" ? '<button class="btn no" data-a="bloquear">Bloquear</button>' : '<button class="btn" data-a="reativar">Reativar</button>')
         + '<button class="btn no" data-x="excluir">Excluir</button>') + "</div>";
-      return `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${uPerfilTxt(u)}${u.empresa ? "<div class='mun'>" + uEsc(u.empresa) + "</div>" : ""}</td>
+      return `<tr data-id="${u.user_id}"><td class="esc">${uEsc(u.nome || "")}</td><td>${uEsc(u.email)}</td><td>${uPerfilTxt(u)}${adm ? ' <span class="badge b-info" title="Altera Planilha, Empresas, Modelo da O.S., Configurações e Usuários">Administrador</span>' : ""}${u.empresa ? "<div class='mun'>" + uEsc(u.empresa) + "</div>" : ""}</td>
         <td><span class="badge ${s[1]}">${s[0]}</span></td><td>${uData(u.ultimo_acesso)}</td><td>${u.decidido_em ? uData(u.decidido_em) : ""}</td><td>${acao}</td></tr>`;
     }).join("")}</tbody></table>`;
 
@@ -51,6 +55,7 @@ async function renderUsuarios(CTX) {
     const u = porId(b.closest("tr").dataset.id); if (!u) return;
     if (b.dataset.x === "editar") return editarUsuario(CTX, u, empresas, recarregar);
     if (b.dataset.x === "senha") return enviarLinkUsuario(u, b);
+    if (b.dataset.x === "admin") return marcarAdmin(CTX, u, !ADM.has(u.user_id), recarregar);
     return excluirUsuario(CTX, u, recarregar);
   });
   document.querySelectorAll('#uPend select[data-f="perfil"]').forEach(sel => sel.onchange = () => {
@@ -74,6 +79,19 @@ async function renderUsuarios(CTX) {
     await renderUsuarios(CTX);
     contarPendentes(CTX);
   });
+  if (!souAdmin) UI.somenteLeitura($("v-usr"));
+}
+
+// 2.13: dar ou retirar a marca de administrador (o banco impede ficar sem nenhum)
+async function marcarAdmin(CTX, u, dar, recarregar) {
+  const nome = u.nome || u.email;
+  if (!(await UI.confirmar({ titulo: dar ? `Tornar ${nome} administrador(a) do sistema?` : `Retirar de ${nome} a marca de administrador?`, botao: dar ? "Tornar administrador" : "Retirar", perigo: !dar,
+    texto: dar ? "Passa a alterar Planilha, Empresas, Modelo da O.S., Configurações e Usuários (inclusive dar e retirar esta marca)."
+               : "Continua na gerência, mas só consulta Planilha, Empresas, Modelo da O.S., Configurações e Usuários." }))) return;
+  const { error: e } = await CTX.sb.rpc("usuario_admin", { p_usuario: u.user_id, p_admin: dar });
+  if (e) return UI.alerta({ titulo: "Não foi possível concluir", itens: e.message });
+  if (u.user_id === CTX.uid && !dar) { UI.aviso("Marca retirada. A página vai recarregar.", "ok"); return setTimeout(() => location.reload(), 900); }
+  await recarregar(dar ? `${nome} agora é administrador(a).` : `${nome} deixou de ser administrador(a).`);
 }
 
 // gerência: envia ao usuário o link de redefinição de senha (o mesmo de "Esqueci minha senha").

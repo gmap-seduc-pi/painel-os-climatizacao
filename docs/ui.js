@@ -262,5 +262,14 @@
     return `<table class="tsol nocard"${titulo ? ` aria-label="${escG(titulo)}"` : ""}><thead><tr><th>Serviço</th>${fx.map(f => `<th>${escG(f)} BTU</th>`).join("")}<th>Total</th></tr></thead><tbody>${sv.map(s =>
       `<tr><th>${SERV_GN[s]}</th>${fx.map(f => `<td>${q(s, f)}</td>`).join("")}<td><b>${sol.filter(x => x.servico === s).reduce((t, x) => t + x.qtd, 0)}</b></td></tr>`).join("")}</tbody></table>`;
   }
-  window.UI = { rotStatus, txtSol, txtAmb, nomeAmb, tabelaSol, ordFaixa, SERV_G, SERV_GN, aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
+  // 2.13: telas de administração vistas por quem não é administrador (gerência sem a marca): só consulta
+  const TXT_LEITURA = "<b>Somente consulta.</b> As alterações desta tela são feitas pelos administradores do sistema.";
+  const faixaLeitura = () => `<div class="faixa info leitura">${TXT_LEITURA}</div>`;
+  function somenteLeitura(el) {
+    if (!el) return;
+    if (!el.querySelector(":scope > .leitura")) el.insertAdjacentHTML("afterbegin", faixaLeitura());
+    el.querySelectorAll("input, select, textarea, button").forEach(c => { if (!c.closest(".ro-ok")) c.disabled = true; });
+    el.querySelectorAll(".mbar button:not(.ro-ok), .mbar .sp, .so-admin").forEach(c => c.hidden = true);
+  }
+  window.UI = { faixaLeitura, somenteLeitura, rotStatus, txtSol, txtAmb, nomeAmb, tabelaSol, ordFaixa, SERV_G, SERV_GN, aoEnviar, confirmar, escolher, alerta, icone, botaoIcone, esc, campoAnexo, ligarAnexo, valorAnexo, pdfDoAnexo, fotosParaPdf, zip };
 })();
