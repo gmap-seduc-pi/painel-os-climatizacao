@@ -589,6 +589,8 @@ function render(arg){ if(view==="geral") renderGeral(filtered()); else if(view==
   else if(view==="aprov") EMI.renderAprov(); else if(view==="nova") EMI.renderNova(arg); else if(view==="emp") EMI.renderEmpresas(); else if(view==="modelo") EMI.renderModelo(); else if(view==="planilha") EMI.renderPlanilha(); else if(view==="fisc") FIS.render(); else if(view==="med") MED.render(); else if(view==="feed") FEED.render(); else if(view==="cfg") FIS.renderConfig(); else renderFila(); }
 // abas por perfil: técnico vê tudo menos Usuários; consultivo (diretoria, fiscais) e empresa só consultam
 const GMAP = perfil==="gmap", TEC = perfil==="tec", EQUIPE = GMAP||TEC;
+// administradores (2.13): só eles alteram Planilha, Empresas, Modelo da O.S., Configurações e Usuários; a gerência sem a marca só consulta
+const ADMIN = GMAP && !!CTX.admin;
 // fase planilha: até a virada, as O.S. são emitidas na planilha; Nova O.S. e Aprovações ficam escondidas
 const EMISSAO = !(CTX.config && CTX.config.planilha_ativa);
 const OBSERVANDO = EMISSAO && !!(CTX.config && CTX.config.observar_planilha);
@@ -635,7 +637,7 @@ const FEED = window.iniciarFeed({CTX, $, esc, tc, nf, EMPN, STB, todos:()=>ALL, 
   GESTAO: EQUIPE||CONSULTIVO, EMPRESA: perfil.startsWith("emp:") ? perfil.slice(4) : null});
 function contarFeed(){ const t=document.querySelector('.tab[data-v="feed"]'), n=FEED.contar(); t.innerHTML="Feed"+(n?`<span class="cnt" title="O.S. com movimentação nova desde a sua última visita ao Feed">${n>99?"99+":n}</span>`:""); }
 contarFeed();
-const EMI = window.iniciarEmissao({MED, CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE,
+const EMI = window.iniciarEmissao({MED, CTX, $, esc, fmt, tc, nf, pct, days, dd, EMPN, PRIOS, SERV, SERVN, STB, PRB, SPB, OPEN, PRE, ORIG, REF, perfil, GMAP, TEC, EQUIPE, ADMIN,
   todos:()=>ALL, solic:()=>SOLIC, find, openDet, closeDet, setView, recarregar, podeSair:()=>EMI.podeSair(view), xlsx, stamp:()=>new Date().toLocaleString("pt-BR"),
   verFila:(filtro)=>{ FV=Object.assign({},filtro||{}); buildFilters(); $("fprazo").value=""; setView("fila"); }});
 const FIS = window.iniciarFiscalizacao({MED, CTX, $, esc, fmt, tc, nf, EMPN, SERV, SERVN, PRIOS, todos:()=>ALL, find, openDet, recarregar, xlsx, doPrint, ph,

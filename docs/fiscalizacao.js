@@ -309,6 +309,7 @@ window.iniciarFiscalizacao = function (P) {
     $("cfgPdf").onchange = () => { CFG.pdf = $("cfgPdf").value; re(); };
     $("cfgMed").onchange = () => { CFG.med = $("cfgMed").value; re(); };
     $("cfgDesc").onclick = () => { CFG = null; re(); };
+    if (!CTX.admin) UI.somenteLeitura($("v-cfg"));
     $("cfgSal").onclick = async () => {
       const limpa = L => L.map(x => x.trim()).filter(Boolean);
       if (!limpa(CFG.mg).length || !limpa(CFG.mr).length) return UI.alerta({ titulo: "Lista vazia", itens: "Deixe pelo menos um motivo em cada lista." });

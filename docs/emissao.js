@@ -3,7 +3,7 @@
    empresas (área e e-mail), histórico e auditoria da base de entidades.
    Todas as regras são conferidas no banco; esta tela só oferece as ações que o perfil pode fazer. */
 window.iniciarEmissao = function (P) {
-  const { CTX, $, esc, fmt, tc, nf, EMPN, PRIOS, SERV, SERVN, STB, PRB, ORIG, REF, GMAP, TEC, EQUIPE } = P;
+  const { CTX, $, esc, fmt, tc, nf, EMPN, PRIOS, SERV, SERVN, STB, PRB, ORIG, REF, GMAP, TEC, EQUIPE } = P, ADMIN = !!P.ADMIN;
   const MED = P.MED;   // itens do contrato (medição)
   const sb = CTX.sb;
   const EMPRESA = P.perfil.startsWith("emp:") ? P.perfil.slice(4) : null;
@@ -691,7 +691,7 @@ window.iniciarEmissao = function (P) {
       ${(pc.diferencas || []).map(difTxt).join("")}</div>`);
     if (pm) f.push(`<div class="faixa warn plan"><b>A planilha está diferente do sistema</b> (detectado ${ha(pm.atualizado_em)}):
       ${(pm.diferencas || []).map(difTxt).join("")}
-      <div class="solb"><button type="button" class="btn pri" data-acao="plan-aplicar">Aplicar no sistema</button><button type="button" class="btn" data-acao="plan-manter">Manter o sistema</button></div></div>`);
+      ${ADMIN ? '<div class="solb"><button type="button" class="btn pri" data-acao="plan-aplicar">Aplicar no sistema</button><button type="button" class="btn" data-acao="plan-manter">Manter o sistema</button></div>' : '<div class="mun">Os administradores do sistema decidem se aplicam no sistema ou mantêm.</div>'}</div>`);
     if (soPlanilha(o)) f.push(`<div class="faixa info"><b>O.S. da planilha geral.</b> Até a virada para o sistema, ela continua sendo atualizada pela planilha e fica só para consulta aqui.</div>`);
     else if (o.legado) f.push(`<div class="mun">Importada da planilha geral.</div>`);
     return f.join("");
@@ -818,9 +818,9 @@ window.iniciarEmissao = function (P) {
   async function renderEmpresas() {
     const L = P.todos(), E = emps();
     const gres = [...new Set(ents().map(e => e.gre).filter(g => g && g !== "SEDE"))].sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true }));
-    $("v-emp").innerHTML = `<div class="card"><h3>Empresas contratadas</h3><div class="d">A área (GREs e municípios) é usada para sugerir a empresa na emissão. Emitir fora da área continua possível, com justificativa. Os avisos de O.S. emitida, alterada ou cancelada vão para o e-mail cadastrado.</div>
+    $("v-emp").innerHTML = (GMAP && !ADMIN ? UI.faixaLeitura() : "") + `<div class="card"><h3>Empresas contratadas</h3><div class="d">A área (GREs e municípios) é usada para sugerir a empresa na emissão. Emitir fora da área continua possível, com justificativa. Os avisos de O.S. emitida, alterada ou cancelada vão para o e-mail cadastrado.</div>
       <div class="emps">${E.map(e => { const ab = L.filter(o => o.emp === e.nome && ["Emitida", "Stand by"].includes(o.status)).length;
-        return `<div class="empc" data-n="${esc(e.nome)}"><div class="lateh"><h3>${esc(EMPN[e.nome] || e.nome)}</h3>${GMAP ? '<button class="btn" data-a="editar">Editar</button>' : ""}</div>
+        return `<div class="empc" data-n="${esc(e.nome)}"><div class="lateh"><h3>${esc(EMPN[e.nome] || e.nome)}</h3>${ADMIN ? '<button class="btn" data-a="editar">Editar</button>' : ""}</div>
           <div class="mun">${nf(ab)} O.S. em aberto</div>
           <div class="kv"><small>E-mail de aviso</small>${e.email ? esc(e.email) : '<span class="badge b-bad">sem e-mail: a empresa não recebe avisos</span>'}</div>
           <div class="kv"><small>GREs atendidas (${(e.gres || []).length})</small><div class="chips">${(e.gres || []).map(g => `<span class="chip">${esc(greCurta(g))}</span>`).join("") || '<span class="mun">nenhuma</span>'}</div></div>
@@ -964,7 +964,7 @@ window.iniciarEmissao = function (P) {
             <input class="mqa" value="${esc(q.ajuda || "")}" placeholder="Texto de ajuda (opcional)" maxlength="200" aria-label="Texto de ajuda"></div>
           ${["unica", "multipla"].includes(q.tipo) ? `<label class="fl"><span>Opções (uma por linha)</span><textarea class="mqop" rows="3">${esc((q.opcoes || []).join("\n"))}</textarea></label>` : ""}</div>`).join("")
           : '<div class="empty">Nenhum campo adicional. Use "+ Adicionar campo".</div>'}</div>
-      <div class="mbar"><button type="button" class="btn" id="mPrev">Pré-visualizar o formulário</button><span class="sp"></span>
+      <div class="mbar"><button type="button" class="btn ro-ok" id="mPrev">Pré-visualizar o formulário</button><span class="sp"></span>
         <button type="button" class="btn" id="mDesc" ${mSujo ? "" : "disabled"}>Descartar alterações</button><button type="button" class="btn pri" id="mSalvar" ${mSujo ? "" : "disabled"}>Salvar modelo</button></div>
       <div class="card"><h3>Histórico do modelo</h3><div id="mLog"><div class="mun">Carregando…</div></div></div>`;
     ligarModelo(); carregarLogModelo();
@@ -1004,6 +1004,7 @@ window.iniciarEmissao = function (P) {
     $("mPrev").onclick = previaModelo;
     $("mDesc").onclick = async () => { if (!(await UI.confirmar({ titulo: "Descartar as alterações do modelo?", botao: "Descartar", perigo: true }))) return; M = null; renderModelo(); };
     $("mSalvar").onclick = salvarModelo;
+    if (!ADMIN) UI.somenteLeitura(v);
   }
   function conferirModelo() {
     const f = [];
@@ -1035,8 +1036,8 @@ window.iniciarEmissao = function (P) {
     let d = $("dlg"); if (!d) { d = document.createElement("div"); d.id = "dlg"; d.className = "dlg"; document.body.appendChild(d); }
     d.innerHTML = `<div class="dlgp larga prev"><h2>Pré-visualização</h2><div class="sub">Como os campos do modelo aparecem no formulário da O.S. (só para ver; nada é enviado).</div>
       <span class="flt">Motivo da O.S. <i class="obr">obrigatório</i></span>${htmlMotivos(m, true).replace(/id="nMot(O|OT)?"/g, "")}
-      <span class="flt">Ambientes ${m.campos.ambientes.obrigatorio ? '<i class="obr">obrigatório</i>' : '<small class="mun">opcional</small>'}</span>
-      <div class="ambl"><select><option>Ambiente</option>${ativos(m.ambientes).map(t => `<option>${esc(t)}</option>`).join("")}<option>Outro</option></select><input class="ambq" placeholder="Splits" type="number"></div>
+      <span class="flt">Ambientes e máquinas <i class="obr">obrigatório</i></span>
+      <div class="ambl"><select><option>Ambiente</option>${ativos(m.ambientes).map(t => `<option>${esc(t)}</option>`).join("")}<option>Outro</option></select><input class="ambo" hidden><input class="ambi" placeholder="Identificação (opcional)"><span class="ambqw"><input class="ambq" placeholder="Qtd." type="number"><span>máq.</span></span></div>
       <span class="flt">Responsável pela entidade ${m.campos.responsavel.obrigatorio ? '<i class="obr">obrigatório</i>' : '<small class="mun">opcional</small>'}</span>
       <div class="fgrid2"><label class="fl"><span>Nome</span><input></label><label class="fl"><span>Telefone ou e-mail</span><input></label></div>
       ${pergs.length ? `<span class="flt">Informações adicionais</span><div class="fgrid2">${pergs.map(q => htmlPergunta(Object.assign({}, q, { id: "prev_" + q.id }))).join("")}</div>` : ""}
@@ -1072,7 +1073,7 @@ window.iniciarEmissao = function (P) {
     const tratadas = L.filter(x => x.situacao !== "aberta").sort((a, b) => String(b.decidido_em || b.atualizado_em).localeCompare(String(a.decidido_em || a.atualizado_em))).slice(0, 80);
     const SIT = { importada: "b-ok", descartada: "b-gray", aplicada: "b-ok", mantida: "b-info", resolvida: "b-ok" };
     const usados = new Set(P.todos().concat(P.solic()).map(x => x.numero));
-    $("v-planilha").innerHTML = `<div class="card"><h3>Planilha geral em observação</h3><div class="d">A emissão é feita no sistema. A planilha continua sendo lida no fim de cada consolidação só para comparar: nada nela muda o sistema sozinho.
+    $("v-planilha").innerHTML = (ADMIN ? "" : UI.faixaLeitura()) + `<div class="card"><h3>Planilha geral em observação</h3><div class="d">A emissão é feita no sistema. A planilha continua sendo lida no fim de cada consolidação só para comparar: nada nela muda o sistema sozinho.
       ${CTX.config && CTX.config.planilha_observada_em ? `Última leitura: ${quando(CTX.config.planilha_observada_em)}.` : "Ainda não houve leitura depois da virada."}</div></div>
       <div class="card"><h3>O.S. novas lançadas na planilha (${novas.length})</h3><div class="d">Importe para gerar a O.S. no sistema com os dados da planilha (número, data e prazo mantidos) ou descarte se foi lançada por engano.</div>
         ${novas.length ? novas.map(p => { const d = p.dados || {}; return `<div class="sol" data-p="${p.id}"><div class="solh"><b>${esc(p.numero)}</b> <span class="badge b-warn">Nova na planilha</span> <span class="badge ${PRB[d.prioridade] || "b-gray"}">${esc(d.prioridade || "sem prioridade")}</span>
@@ -1081,12 +1082,12 @@ window.iniciarEmissao = function (P) {
           <div class="solg"><span><small>Empresa</small>${esc(EMPN[p.empresa] || p.empresa)}</span><span><small>Serviço</small>${esc(d.descricao || "")}${d.splits != null ? " · " + d.splits + " splits" : ""}</span>
             <span><small>Criada / prazo</small>${fmt(d.criada_em) || "?"} · ${fmt(d.prazo) || "?"}</span><span><small>Status na planilha</small>${esc(d.status_planilha || d.status || "")}</span></div>
           ${d.observacoes ? `<div class="soltx">${esc(d.observacoes)}</div>` : ""}
-          <div class="solb"><button class="btn pri" data-a="importar">Importar</button><button class="btn no" data-a="descartar">Descartar</button></div></div>`; }).join("") : '<div class="empty">Nenhuma O.S. nova na planilha.</div>'}</div>
+          ${ADMIN ? '<div class="solb"><button class="btn pri" data-a="importar">Importar</button><button class="btn no" data-a="descartar">Descartar</button></div>' : ""}</div>`; }).join("") : '<div class="empty">Nenhuma O.S. nova na planilha.</div>'}</div>
       <div class="card"><h3>Mudanças feitas na planilha em O.S. do sistema (${muds.length})</h3><div class="d">Campos que alguém mudou na planilha depois da última leitura e que ficaram diferentes do sistema. O que muda só no sistema não aparece aqui. Nada muda sozinho: aplique no sistema os campos que estiverem certos na planilha ou mantenha o sistema, justificando. As mesmas ações aparecem dentro da O.S.</div>
         ${muds.length ? `<div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que mudou</th><th></th></tr></thead><tbody>${muds.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">
           <td><b>${esc(p.numero)}</b><div class="mun">${ha(p.atualizado_em)}</div></td><td>${esc(EMPN[p.empresa] || p.empresa)}</td>
           <td class="ev">${(p.diferencas || []).map(difTxt).join("")}</td>
-          <td><div class="acoes pacoes">${ibA("abrir", "abrir", "Abrir a O.S.")}${ibA("aplicar", "aplicar", "Aplicar no sistema", "pri")}${ibA("manter", "manter", "Manter o sistema")}</div></td></tr>`).join("")}</tbody></table></div>`
+          <td><div class="acoes pacoes">${ibA("abrir", "abrir", "Abrir a O.S.")}${ADMIN ? ibA("aplicar", "aplicar", "Aplicar no sistema", "pri") + ibA("manter", "manter", "Manter o sistema") : ""}</div></td></tr>`).join("")}</tbody></table></div>`
           : '<div class="empty">Nenhuma mudança nova na planilha.</div>'}</div>
       ${mudsC.length ? `<div class="card"><h3>Lançamentos da planilha em O.S. canceladas (${mudsC.length})</h3><div class="d">Só para consulta, fora das contagens. A O.S. cancelada não muda; se a empresa informou atendimento numa O.S. cancelada, ela não pode ser paga por ela.</div>
         <div class="tbl" style="max-height:none"><table><thead><tr><th>Nº O.S.</th><th>Empresa</th><th>O que a planilha diz</th><th></th></tr></thead><tbody>${mudsC.map(p => `<tr data-p="${p.id}" data-os="${p.os_id}">

@@ -146,8 +146,11 @@
 
       show("app");
       const { data: emps } = await sb.rpc("empresas_disponiveis");
+      // administrador do sistema (2.13): só a gerência pode ser; banco sem a migração 016 = ninguém é
+      let admin = false;
+      if (p.perfil === "gmap") { try { const r = await sb.rpc("eh_admin"); admin = !r.error && r.data === true; } catch (e) {} }
       const ctx = Object.assign(dados, { perfil, perfilNome, ref: hojeBR(), logo: new URL("assets/logo-seduc.png", location.href).href,
-                      sb, uid: session.user.id, nome: p.nome || p.email, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]),
+                      sb, uid: session.user.id, nome: p.nome || p.email, admin, empresas: (emps || []).map(e => typeof e === "string" ? e : Object.values(e)[0]),
                       recarregar: () => carregarDados(equipe, gestao, p.perfil === "gmap"), recarregarParcial: ids => carregarParcial(ctx, ids, gestao) });
       iniciarPainel(ctx);
       if (!naPlanilha) ligarTempoReal(ctx);
